@@ -7,6 +7,7 @@ from bson import ObjectId
 from models import Student, Project
 from database import students_collection, projects_collection
 from services.matcher import calculate_match_score
+from services.team_optimizer import create_team
 import shutil
 
 app = FastAPI(
@@ -136,3 +137,46 @@ def find_matches(project_id: str):
     )
 
     return matches
+
+@app.get("/projects/{project_id}/team")
+def generate_team(project_id: str):
+
+    project = projects_collection.find_one(
+        {"_id": ObjectId(project_id)}
+    )
+
+    if not project:
+        return {
+            "message": "Project not found"
+        }
+
+    required_skills = project["required_skills"]
+
+    matches = []
+
+    for student in students_collection.find():
+
+        resume_skills = student.get(
+            "resume_skills",
+            []
+        )
+
+        score = calculate_match_score(
+            resume_skills,
+            required_skills
+        )
+
+        matches.append({
+            "student_name": student["name"],
+            "match_score": score
+        })
+
+    team = create_team(
+        matches,
+        project["team_size"]
+    )
+
+    return {
+        "project": project["title"],
+        "team": team
+    }
