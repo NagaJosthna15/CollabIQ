@@ -7,3 +7,10 @@ class Student(BaseModel):
     cgpa: float
     skills: List[str]
     interests: List[str]
+
+class Project(BaseModel):
+    title: str
+    description: str
+    required_skills: list[str]
+    team_size: int
+    created_by: str    
