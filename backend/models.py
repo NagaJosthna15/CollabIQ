@@ -7,6 +7,7 @@ class Student(BaseModel):
     cgpa: float
     skills: List[str]
     interests: List[str]
+    projects_completed: int
 
 class Project(BaseModel):
     title: str

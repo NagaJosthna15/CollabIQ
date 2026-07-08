@@ -8,6 +8,7 @@ from models import Student, Project
 from database import students_collection, projects_collection
 from services.matcher import calculate_match_score
 from services.team_optimizer import create_team
+from services.talent_scorer import calculate_talent_score
 import shutil
 
 app = FastAPI(
@@ -179,4 +180,24 @@ def generate_team(project_id: str):
     return {
         "project": project["title"],
         "team": team
+    }
+
+
+@app.get("/students/{student_id}/talent-score")
+def get_talent_score(student_id: str):
+
+    student = students_collection.find_one(
+        {"_id": ObjectId(student_id)}
+    )
+
+    if not student:
+        return {
+            "message": "Student not found"
+        }
+
+    score = calculate_talent_score(student)
+
+    return {
+        "student": student["name"],
+        "talent_score": score
     }
