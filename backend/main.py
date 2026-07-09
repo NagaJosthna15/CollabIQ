@@ -9,6 +9,7 @@ from database import students_collection, projects_collection
 from services.matcher import calculate_match_score
 from services.team_optimizer import create_team
 from services.talent_scorer import calculate_talent_score
+from services.ranker import calculate_final_score
 import shutil
 
 app = FastAPI(
@@ -126,14 +127,21 @@ def find_matches(project_id: str):
             resume_skills,
             required_skills
         )
-
+        talent_score = calculate_talent_score(
+        student
+        )
+        final_score = calculate_final_score(
+            score,
+            talent_score
+        )
         matches.append({
             "student_name": student["name"],
-            "match_score": score
+            "match_score": score,
+            "talent_score": talent_score,
+            "final_score": final_score
         })
-
     matches.sort(
-        key=lambda x: x["match_score"],
+        key=lambda x: x["final_score"],
         reverse=True
     )
 
