@@ -8,6 +8,7 @@ class Student(BaseModel):
     skills: List[str]
     interests: List[str]
     projects_completed: int
+    github_username: str
 
 class Project(BaseModel):
     title: str

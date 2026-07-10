@@ -10,6 +10,10 @@ from services.matcher import calculate_match_score
 from services.team_optimizer import create_team
 from services.talent_scorer import calculate_talent_score
 from services.ranker import calculate_final_score
+from services.github_analyzer import(
+    get_github_profile,
+    get_github_repositories
+)
 import shutil
 
 app = FastAPI(
@@ -208,4 +212,54 @@ def get_talent_score(student_id: str):
     return {
         "student": student["name"],
         "talent_score": score
+    }
+@app.get("/students/{student_id}/github-profile")
+def github_profile(student_id: str):
+
+    student = students_collection.find_one(
+        {"_id": ObjectId(student_id)}
+    )
+
+    if not student:
+        return {
+            "message": "Student not found"
+        }
+
+    username = student.get(
+        "github_username"
+    )
+
+    if not username:
+        return {
+            "message": "GitHub username not found"
+        }
+
+    profile = get_github_profile(
+        username
+    )
+
+    return profile
+@app.get("/students/{student_id}/github-projects")
+def github_projects(student_id: str):
+
+    student = students_collection.find_one(
+        {"_id": ObjectId(student_id)}
+    )
+
+    if not student:
+        return {
+            "message": "Student not found"
+        }
+
+    username = student.get(
+        "github_username"
+    )
+
+    repos = get_github_repositories(
+        username
+    )
+
+    return {
+        "username": username,
+        "repositories": repos
     }
