@@ -14,6 +14,9 @@ from services.github_analyzer import(
     get_github_profile,
     get_github_repositories
 )
+from services.github_relevance import (
+    calculate_github_relevance
+)
 import shutil
 
 app = FastAPI(
@@ -262,4 +265,48 @@ def github_projects(student_id: str):
     return {
         "username": username,
         "repositories": repos
+    }
+@app.get(
+    "/projects/{project_id}/github-relevance/{student_id}"
+)
+def github_relevance(
+    project_id: str,
+    student_id: str
+):
+
+    project = projects_collection.find_one(
+        {"_id": ObjectId(project_id)}
+    )
+
+    student = students_collection.find_one(
+        {"_id": ObjectId(student_id)}
+    )
+
+    if not project:
+        return {
+            "message": "Project not found"
+        }
+
+    if not student:
+        return {
+            "message": "Student not found"
+        }
+
+    username = student.get(
+        "github_username"
+    )
+
+    repositories = get_github_repositories(
+        username
+    )
+
+    score = calculate_github_relevance(
+        repositories,
+        project["required_skills"]
+    )
+
+    return {
+        "student": student["name"],
+        "project": project["title"],
+        "github_relevance_score": score
     }

@@ -58,8 +58,9 @@ def get_github_repositories(username):
 
         repo_list.append({
             "name": repo["name"],
+            "description": repo["description"],
             "language": repo["language"],
-            "stars": repo["stargazers_count"]
+            
         })
 
     return repo_list
