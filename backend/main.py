@@ -17,6 +17,7 @@ from services.github_analyzer import(
 from services.github_relevance import (
     calculate_github_relevance
 )
+from services.team_builder import build_balanced_team
 import shutil
 
 app = FastAPI(
@@ -309,4 +310,29 @@ def github_relevance(
         "student": student["name"],
         "project": project["title"],
         "github_relevance_score": score
+    }
+@app.get("/projects/{project_id}/smart-team")
+def smart_team(project_id: str):
+
+    project = projects_collection.find_one(
+        {"_id": ObjectId(project_id)}
+    )
+
+    if not project:
+        return {
+            "message": "Project not found"
+        }
+
+    students = list(
+        students_collection.find()
+    )
+
+    team = build_balanced_team(
+        project,
+        students
+    )
+
+    return {
+        "project": project["title"],
+        "team": team
     }
