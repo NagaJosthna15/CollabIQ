@@ -18,6 +18,9 @@ from services.github_relevance import (
     calculate_github_relevance
 )
 from services.team_builder import build_balanced_team
+from services.student_intelligence import (
+    build_student_profile
+)
 import shutil
 
 app = FastAPI(
@@ -336,3 +339,38 @@ def smart_team(project_id: str):
         "project": project["title"],
         "team": team
     }
+@app.get(
+    "/students/{student_id}/intelligence-profile"
+)
+def get_intelligence_profile(
+    student_id: str
+):
+
+    student = students_collection.find_one(
+        {
+            "_id": ObjectId(student_id)
+        }
+    )
+
+    if not student:
+
+        return {
+            "error": "Student not found"
+        }
+
+    github_username = student.get(
+        "github_username"
+    )
+
+    if not github_username:
+
+        return {
+            "error":
+            "GitHub username not found"
+        }
+
+    profile = build_student_profile(
+        github_username
+    )
+
+    return profile
