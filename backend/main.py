@@ -21,6 +21,9 @@ from services.team_builder import build_balanced_team
 from services.student_intelligence import (
     build_student_profile
 )
+from services.team_success import (
+    calculate_team_success
+)
 import shutil
 
 app = FastAPI(
@@ -338,6 +341,45 @@ def smart_team(project_id: str):
     return {
         "project": project["title"],
         "team": team
+    }
+@app.get(
+    "/projects/{project_id}/team-success"
+)
+def team_success(
+    project_id: str
+):
+
+    project = projects_collection.find_one(
+        {"_id": ObjectId(project_id)}
+    )
+
+    if not project:
+        return {
+            "message": "Project not found"
+        }
+
+    students = list(
+        students_collection.find()
+    )
+
+    team = build_balanced_team(
+        project,
+        students
+    )
+
+    result = calculate_team_success(
+        team
+    )
+
+    return {
+        "project": project["title"],
+        "team_size": len(team),
+
+        "success_score":
+        result["success_score"],
+
+        "success_probability":
+        result["success_probability"]
     }
 @app.get(
     "/students/{student_id}/intelligence-profile"
