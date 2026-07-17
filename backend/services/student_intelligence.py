@@ -54,6 +54,14 @@ def build_student_profile(
     total_innovation = 0
 
     total_complexity = 0
+    total_industry_impact = 0
+    total_future_scope = 0
+    if not project_reports:
+        return {
+            "student": github_username,
+            "projects_analyzed": 0
+    }
+    
 
     for project in project_reports:
 
@@ -66,6 +74,13 @@ def build_student_profile(
         total_complexity += (
             analysis["complexity_score"]
         )
+        total_industry_impact += (
+        analysis["industry_impact"]
+    )
+
+        total_future_scope += (
+        analysis["future_scope"]
+    )
 
         for domain in analysis[
             "top_domains"
@@ -120,6 +135,17 @@ def build_student_profile(
         len(project_reports),
         2
     )
+    avg_industry_impact = round(
+    total_industry_impact /
+    len(project_reports),
+    2
+)
+
+    avg_future_scope = round(
+    total_future_scope /
+    len(project_reports),
+    2
+)
 
     return {
         "student": github_username,
@@ -135,6 +161,11 @@ def build_student_profile(
 
         "average_complexity":
         avg_complexity,
+        "average_industry_impact":
+        avg_industry_impact,
+
+        "average_future_scope":
+         avg_future_scope,
 
         "recommended_role":
         recommended_role

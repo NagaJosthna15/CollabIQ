@@ -1,5 +1,8 @@
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
+from services.llm_project_analyzer import (
+    analyze_project_with_llm
+)
 
 model = SentenceTransformer(
     "all-MiniLM-L6-v2"
@@ -172,14 +175,35 @@ def analyze_project(readme_text):
             readme_text
         )
     )
+    llm_analysis = analyze_project_with_llm(
+    readme_text
+)
 
     return {
-        "top_domains":
-            domains["top_domains"],
+    "top_domains": domains ["top_domains"],
+    "innovation_score":
+    innovation_score,
 
-        "innovation_score":
-            innovation_score,
+    "complexity_score":
+    complexity_score,
 
-        "complexity_score":
-            complexity_score
-    }
+    "project_summary":
+    llm_analysis[
+        "project_summary"
+    ],
+
+    "industry_impact":
+    llm_analysis[
+        "industry_impact"
+    ],
+
+    "future_scope":
+    llm_analysis[
+        "future_scope"
+    ],
+
+    "innovation_level":
+    llm_analysis[
+        "innovation_level"
+    ]
+}
