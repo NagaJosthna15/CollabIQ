@@ -1,14 +1,7 @@
-from groq import Groq
-import os
+from services.llm.client import client
 import json
-from dotenv import load_dotenv
-
-load_dotenv()
-
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
-)
 def analyze_project_with_llm(readme_text):
+
 
     prompt = f"""
     Analyze the following GitHub project README.

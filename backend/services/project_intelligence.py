@@ -1,6 +1,6 @@
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
-from services.llm_project_analyzer import (
+from services.llm.llm_project_analyzer import (
     analyze_project_with_llm
 )
 
