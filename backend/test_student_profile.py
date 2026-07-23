@@ -1,9 +1,8 @@
-from services.student_intelligence import (
-    build_student_profile
-)
+from services.recruiter_agent import RecruiterAgent
 
-result = build_student_profile(
-    "NagaJosthna15"
-)
+agent = RecruiterAgent()
 
-print(result)
+profiles = agent.build_student_profiles()
+
+for profile in profiles:
+    print(profile)

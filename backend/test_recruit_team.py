@@ -1,0 +1,18 @@
+from services.recruiter_agent import RecruiterAgent
+
+agent = RecruiterAgent()
+
+result = agent.recruit_team(
+
+    title="AI Healthcare Assistant",
+
+    description="""
+Build an AI-powered healthcare platform
+that predicts diseases from symptoms,
+stores patient history,
+provides recommendations,
+and has a React dashboard.
+"""
+)
+
+print(result)

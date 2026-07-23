@@ -21,7 +21,9 @@ from services.project_intelligence import (
 )
 from services.llm.llm_career_assessor import generate_career_assessment
 
-def build_student_profile(github_username):
+def build_student_profile(student):
+
+    github_username = student["github_username"]
 
     repositories = get_github_repositories(github_username)
 
@@ -119,15 +121,25 @@ def build_student_profile(github_username):
     )
 
     profile = {
-        "student": github_username,
-        "projects_analyzed": len(project_reports),
-        "strong_domains": strong_domains,
-        "average_innovation": avg_innovation,
-        "average_complexity": avg_complexity,
-        "average_industry_impact": avg_industry_impact,
-        "average_future_scope": avg_future_scope,
-        "recommended_role": recommended_role
-    }
+    "student_id": str(student.get("_id", "")),
+    "student": student["name"],
+    "email": student["email"],
+    "github_username": github_username,
+    "cgpa": student.get("cgpa", 0),
+    "skills": student.get("skills", []),
+    "resume_skills": student.get("resume_skills", []),
+
+    "projects_analyzed": len(project_reports),
+
+    "strong_domains": strong_domains,
+
+    "average_innovation": avg_innovation,
+    "average_complexity": avg_complexity,
+    "average_industry_impact": avg_industry_impact,
+    "average_future_scope": avg_future_scope,
+
+    "recommended_role": recommended_role
+}
 
     profile["career_assessment"] = (
         generate_career_assessment(profile)
