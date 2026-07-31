@@ -58,4 +58,78 @@ def rank_candidates(
 ):
     ranked_candidates = []
 
+    for candidate in candidates:
+
+        skill_score = calculate_skill_score(
+            project_requirements,
+            candidate
+        )
+        domain_score = calculate_domain_score(
+        project_requirements,
+        candidate
+        )
+
+        ranked_candidates.append(
+    {
+        "profile": candidate,
+        "scores": {
+            "skill": skill_score,
+            "domain": domain_score
+        }
+    }
+)
+        ranked_candidates.sort(
+        key=lambda x: x["scores"]["skill"],
+        reverse=True
+    )
+
     return ranked_candidates
+def calculate_domain_score(
+    project_requirements,
+    candidate
+):
+    project_domains = project_requirements.get(
+        "project_domains",
+        []
+    )
+
+    strong_domains = candidate.get(
+        "strong_domains",
+        []
+    )
+
+    project_domains = [
+        domain.lower()
+        for domain in project_domains
+    ]
+
+    strong_domains = [
+        domain.lower()
+        for domain in strong_domains
+    ]
+
+    if len(project_domains) == 0:
+        return 0
+
+    matches = 0
+
+    for project_domain in project_domains:
+
+        for strong_domain in strong_domains:
+
+            if (
+                project_domain in strong_domain
+                or strong_domain in project_domain
+            ):
+                matches += 1
+                break
+
+    domain_score = (
+        matches / len(project_domains)
+    ) * 100
+
+    return round(domain_score, 2)
+
+        
+
+   

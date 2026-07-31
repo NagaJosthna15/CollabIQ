@@ -4,6 +4,7 @@ from services.llm.llm_requirement_analyzer import (
 from services.student_service import get_all_students
 from services.student_profile_builder import StudentProfileBuilder
 from services.matching.candidate_search import filter_candidates
+from services.ranking.candidate_ranker import rank_candidates
 
 
 class RecruiterAgent:
@@ -39,12 +40,17 @@ class RecruiterAgent:
         candidates = self.search_candidates(
         requirements,
         student_profiles
-    )
-
+        )
+    
+        ranked_candidates = rank_candidates(
+        requirements,
+        candidates
+        )
         return {
-        "project_requirements": requirements,
-        "candidates": candidates
+             "project_requirements": requirements,
+             "ranked_candidates": ranked_candidates
     }
+
     def search_candidates(
             self,
             project_requirements,
