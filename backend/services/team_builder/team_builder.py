@@ -68,7 +68,23 @@ def assign_secondary_roles(
         unassigned_roles
         
 ):
-    pass   
+    for role in unassigned_roles:
+
+        print(
+            "\nReassigning:",
+            role
+        )
+        best_candidate = None
+
+        best_similarity = 0
+        for member in selected_team:
+            pass
+        for member in selected_team:
+            candidate = member["candidate"]
+            profile = candidate["profile"]
+
+    return selected_team
+      
 
 
 def build_team(
