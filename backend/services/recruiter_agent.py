@@ -5,6 +5,7 @@ from services.student_service import get_all_students
 from services.student_profile_builder import StudentProfileBuilder
 from services.matching.candidate_search import filter_candidates
 from services.ranking.candidate_ranker import rank_candidates
+from services.team_builder.team_builder import build_team
 
 
 class RecruiterAgent:
@@ -46,9 +47,15 @@ class RecruiterAgent:
         requirements,
         candidates
         )
+        final_team = build_team(
+             requirements,
+             ranked_candidates
+        )     
+        
+
         return {
              "project_requirements": requirements,
-             "ranked_candidates": ranked_candidates
+              "final_team": final_team
     }
 
     def search_candidates(

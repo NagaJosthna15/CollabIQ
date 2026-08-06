@@ -1,3 +1,6 @@
+from services.agents.responsibility_agent import (
+    ResponsibilityAgent
+)
 from services.matching.semantic_role_matcher import (
     role_similarity
 )
@@ -63,25 +66,23 @@ def assign_primary_roles(
         "unassigned_roles": unassigned_roles
     }
 def assign_secondary_roles(
-        project_requirements,
-        selected_team,
-        unassigned_roles
-        
+    project_requirements,
+    selected_team,
+    unassigned_roles
 ):
+
+    agent = ResponsibilityAgent()
+
     for role in unassigned_roles:
 
-        print(
-            "\nReassigning:",
-            role
-        )
-        best_candidate = None
+        print("\nReassigning:", role)
 
-        best_similarity = 0
-        for member in selected_team:
-            pass
-        for member in selected_team:
-            candidate = member["candidate"]
-            profile = candidate["profile"]
+        result = agent.assign_secondary_role(
+            role,
+            selected_team
+        )
+
+        print(result)
 
     return selected_team
       
@@ -92,53 +93,23 @@ def build_team(
     ranked_candidates
 ):
 
-    preferred_roles = project_requirements.get(
-        "preferred_roles",
-        []
+    primary_result = assign_primary_roles(
+        project_requirements,
+        ranked_candidates
     )
 
-    selected_team = []
+    selected_team = primary_result[
+        "selected_team"
+    ]
 
-    used_students = set()
+    unassigned_roles = primary_result[
+        "unassigned_roles"
+    ]
 
-    for role in preferred_roles:
-
-        print("\nSearching for role:", role)
-        best_candidate = None
-        best_similarity = 0
-
-        for candidate in ranked_candidates:
-
-            profile = candidate["profile"]
-            similarity = role_similarity(
-                role, 
-                profile["recommended_role"]
-                )
-            if similarity > best_similarity:
-                 best_similarity = similarity
-                 best_candidate = candidate
-            skill_score = candidate["scores"]["skill"]
-            ranking_score = candidate["scores"]["final"]
-            print(
-                profile["student"],
-                "| Role:",
-                profile["recommended_role"],
-                "| Similarity:",
-                similarity,
-                "| Skill:",
-                skill_score,
-                "| Ranking:",
-                ranking_score
-            )
-        if best_candidate is not None:
-            print(
-                "Selected:",
-
-                 best_candidate["profile"]["student"]
-        )
-         
-
-      
-            
+    selected_team = assign_secondary_roles(
+        project_requirements,
+        selected_team,
+        unassigned_roles
+    )
 
     return selected_team

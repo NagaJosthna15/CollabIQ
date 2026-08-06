@@ -1,8 +1,12 @@
+
+from urllib import response
+
 from services.ai.gemini_service import (
     GeminiService
 )
 
 import json
+import re
 class ResponsibilityAgent:
 
     """
@@ -22,21 +26,21 @@ class ResponsibilityAgent:
         selected_team
     ):
 
-        # Step 1
-        # Build prompt
+        
         prompt = self.build_prompt(
             role,
             selected_team
         )
 
-        # Step 2
-        # Send prompt to Gemini
+        
         response = self.ask_gemini(
             prompt
         )
+        print("\n========== GEMINI RESPONSE ==========")
+        print(response)
+        print("=====================================\n")
 
-        # Step 3
-        # Convert JSON string
+
         result = self.parse_response(
             response
         )
@@ -131,14 +135,33 @@ Strong Domains:
         return self.gemini.generate(
             prompt
     )
-
     def parse_response(
-        self,
-        response
-    ):
+    self,
+    response
+):
+        response = response.strip()
+
+        response = response.replace(
+            "```json",
+            ""
+        )
+        response = response.replace(
+           "```",
+           ""
+       )
+        response = response.strip()
+        match = re.search(
+            r"\{.*\}",
+            response,
+            re.DOTALL
+       )
+        if not re.match:
+            raise ValueError(
+                 "Gemini did not return valid JSON."
+            )
         return json.loads(
-            response
-    )
+             match.group()
+       ) 
         
 
     
