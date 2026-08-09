@@ -75,7 +75,10 @@ def assign_secondary_roles(
 
     for role in unassigned_roles:
 
-        print("\nReassigning:", role)
+        print(
+            "\nReassigning:",
+            role
+        )
 
         result = agent.assign_secondary_role(
             role,
@@ -84,9 +87,43 @@ def assign_secondary_roles(
 
         print(result)
 
-    return selected_team
-      
+        selected_student = result.get(
+            "selected_student"
+        )
 
+        confidence = result.get(
+            "confidence"
+        )
+
+        reason = result.get(
+            "reason"
+        )
+
+        for member in selected_team:
+
+            student_name = member[
+                "candidate"
+            ]["profile"]["student"]
+
+            if student_name == selected_student:
+
+                if "secondary_roles" not in member:
+
+                    member["secondary_roles"] = []
+
+                member["secondary_roles"].append({
+
+                    "role": role,
+
+                    "confidence": confidence,
+
+                    "reason": reason
+
+                })
+
+                break
+
+    return selected_team
 
 def build_team(
     project_requirements,
