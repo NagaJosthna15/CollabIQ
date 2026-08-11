@@ -1,6 +1,8 @@
 from services.recruiter_agent import RecruiterAgent
 
+
 agent = RecruiterAgent()
+
 
 result = agent.recruit_team(
     "AI Healthcare Assistant",
@@ -12,4 +14,20 @@ result = agent.recruit_team(
     """
 )
 
-print(result)
+
+print(
+    "\n========== PROJECT REQUIREMENTS ==========\n"
+)
+
+print(
+    result["project_requirements"]
+)
+
+
+print(
+    "\n========== FINAL TEAM ==========\n"
+)
+
+print(
+    result["final_team"]
+)

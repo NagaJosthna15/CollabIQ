@@ -3,16 +3,24 @@ from services.matching.skill_normalizer import (
     expand_skill
 )
 
+from services.matching.semantic_role_matcher import (
+    skill_similarity
+)
+
+
+SKILL_SIMILARITY_THRESHOLD = 0.70
+
 
 class CoverageAnalyzer:
 
     """
-    Analyzes whether the selected team
-    covers the project's required roles
-    and skills.
+    Analyzes whether the selected team covers
+    the project's required roles and skills.
 
-    It also identifies which team members
-    can provide each required skill.
+    Uses:
+    1. Exact/normalized skill matching
+    2. Semantic skill similarity
+    3. Skill ownership detection
     """
 
     def analyze(
@@ -21,9 +29,9 @@ class CoverageAnalyzer:
         selected_team
     ):
 
-        # --------------------------------
+        # =================================
         # 1. Project requirements
-        # --------------------------------
+        # =================================
 
         required_roles = project_requirements.get(
             "preferred_roles",
@@ -35,21 +43,24 @@ class CoverageAnalyzer:
             []
         )
 
-        # --------------------------------
+        # =================================
         # 2. Containers
-        # --------------------------------
+        # =================================
 
         covered_roles = []
 
         covered_skills = []
 
-        # --------------------------------
-        # 3. Analyze selected team
-        # --------------------------------
+        # =================================
+        # 3. Collect team information
+        # =================================
 
         for member in selected_team:
 
+            # ---------------------------------
             # Primary role
+            # ---------------------------------
+
             primary_role = member.get(
                 "role"
             )
@@ -60,7 +71,10 @@ class CoverageAnalyzer:
                     primary_role
                 )
 
+            # ---------------------------------
             # Secondary roles
+            # ---------------------------------
+
             secondary_roles = member.get(
                 "secondary_roles",
                 []
@@ -78,7 +92,10 @@ class CoverageAnalyzer:
                         secondary_role
                     )
 
+            # ---------------------------------
             # Student profile
+            # ---------------------------------
+
             profile = member[
                 "candidate"
             ]["profile"]
@@ -101,18 +118,18 @@ class CoverageAnalyzer:
                 resume_skills
             )
 
-        # --------------------------------
+        # =================================
         # 4. Normalize roles
-        # --------------------------------
+        # =================================
 
         covered_roles_normalized = set(
             role.strip().lower()
             for role in covered_roles
         )
 
-        # --------------------------------
+        # =================================
         # 5. Normalize team skills
-        # --------------------------------
+        # =================================
 
         covered_skills_normalized = set()
 
@@ -124,15 +141,17 @@ class CoverageAnalyzer:
 
             for expanded_skill in expanded_skills:
 
-                covered_skills_normalized.add(
-                    normalize_skill(
-                        expanded_skill
-                    )
+                normalized_skill = normalize_skill(
+                    expanded_skill
                 )
 
-        # --------------------------------
+                covered_skills_normalized.add(
+                    normalized_skill
+                )
+
+        # =================================
         # 6. Find missing roles
-        # --------------------------------
+        # =================================
 
         missing_roles = []
 
@@ -146,44 +165,156 @@ class CoverageAnalyzer:
                     role
                 )
 
-        # --------------------------------
-        # 7. Find missing skills
-        # --------------------------------
+        # =================================
+        # 7. Semantic skill coverage
+        # =================================
 
         missing_skills = []
 
+        skill_match_details = {}
+
         for required_skill in required_skills:
 
-            expanded_required_skills = expand_skill(
+            # ---------------------------------
+            # Expand required skill
+            # ---------------------------------
+
+            required_parts = expand_skill(
                 required_skill
             )
 
-            skill_is_covered = True
-
-            for skill in expanded_required_skills:
-
-                normalized_required_skill = normalize_skill(
+            required_parts = [
+                normalize_skill(
                     skill
                 )
+                for skill in required_parts
+            ]
+
+            skill_match_details[
+                required_skill
+            ] = []
+
+            overall_skill_covered = True
+
+            # =================================
+            # Check every part of skill
+            # =================================
+
+            for required_part in required_parts:
+
+                # ---------------------------------
+                # Exact match first
+                # ---------------------------------
 
                 if (
-                    normalized_required_skill
-                    not in covered_skills_normalized
+                    required_part
+                    in covered_skills_normalized
                 ):
 
-                    skill_is_covered = False
+                    skill_match_details[
+                        required_skill
+                    ].append({
 
-                    break
+                        "required_skill":
+                            required_part,
 
-            if not skill_is_covered:
+                        "matched_skill":
+                            required_part,
+
+                        "similarity":
+                            1.0,
+
+                        "match_type":
+                            "exact"
+
+                    })
+
+                    continue
+
+                # ---------------------------------
+                # Semantic matching
+                # ---------------------------------
+
+                best_match = None
+
+                best_similarity = 0
+
+                for candidate_skill in covered_skills:
+
+                    similarity = skill_similarity(
+                        required_part,
+                        candidate_skill
+                    )
+
+                    if similarity > best_similarity:
+
+                        best_similarity = similarity
+
+                        best_match = candidate_skill
+
+                # ---------------------------------
+                # Threshold check
+                # ---------------------------------
+
+                if (
+                    best_match is not None
+                    and best_similarity
+                    >= SKILL_SIMILARITY_THRESHOLD
+                ):
+
+                    skill_match_details[
+                        required_skill
+                    ].append({
+
+                        "required_skill":
+                            required_part,
+
+                        "matched_skill":
+                            best_match,
+
+                        "similarity":
+                            best_similarity,
+
+                        "match_type":
+                            "semantic"
+
+                    })
+
+                else:
+
+                    overall_skill_covered = False
+
+                    skill_match_details[
+                        required_skill
+                    ].append({
+
+                        "required_skill":
+                            required_part,
+
+                        "matched_skill":
+                            best_match,
+
+                        "similarity":
+                            best_similarity,
+
+                        "match_type":
+                            "not_covered"
+
+                    })
+
+            # ---------------------------------
+            # Add to missing skills
+            # ---------------------------------
+
+            if not overall_skill_covered:
 
                 missing_skills.append(
                     required_skill
                 )
 
-        # --------------------------------
+        # =================================
         # 8. Find skill owners
-        # --------------------------------
+        # =================================
 
         skill_owners = {}
 
@@ -193,16 +324,20 @@ class CoverageAnalyzer:
                 required_skill
             ] = []
 
-            required_skill_parts = expand_skill(
+            required_parts = expand_skill(
                 required_skill
             )
 
-            normalized_required_parts = [
+            required_parts = [
                 normalize_skill(
                     skill
                 )
-                for skill in required_skill_parts
+                for skill in required_parts
             ]
+
+            # =================================
+            # Check every team member
+            # =================================
 
             for member in selected_team:
 
@@ -230,6 +365,10 @@ class CoverageAnalyzer:
                     )
                 )
 
+                # ---------------------------------
+                # Normalize student skills
+                # ---------------------------------
+
                 normalized_student_skills = set()
 
                 for skill in student_skills:
@@ -246,23 +385,82 @@ class CoverageAnalyzer:
                             )
                         )
 
-                # Student owns the skill
-                # if all parts are available
+                # ---------------------------------
+                # Check every required part
+                # ---------------------------------
 
-                if all(
-                    skill in normalized_student_skills
-                    for skill in normalized_required_parts
-                ):
+                member_can_cover = True
+
+                member_best_similarity = 0
+
+                for required_part in required_parts:
+
+                    # ---------------------------------
+                    # Exact match
+                    # ---------------------------------
+
+                    if (
+                        required_part
+                        in normalized_student_skills
+                    ):
+
+                        part_similarity = 1.0
+
+                    else:
+
+                        # ---------------------------------
+                        # Semantic match
+                        # ---------------------------------
+
+                        part_similarity = 0
+
+                        for student_skill in student_skills:
+
+                            similarity = skill_similarity(
+                                required_part,
+                                student_skill
+                            )
+
+                            if similarity > part_similarity:
+
+                                part_similarity = similarity
+
+                    if (
+                        part_similarity
+                        < SKILL_SIMILARITY_THRESHOLD
+                    ):
+
+                        member_can_cover = False
+
+                    member_best_similarity = max(
+                        member_best_similarity,
+                        part_similarity
+                    )
+
+                # ---------------------------------
+                # Add owner
+                # ---------------------------------
+
+                if member_can_cover:
 
                     skill_owners[
                         required_skill
-                    ].append(
-                        student_name
-                    )
+                    ].append({
 
-        # --------------------------------
-        # 9. Return coverage analysis
-        # --------------------------------
+                        "student":
+                            student_name,
+
+                        "similarity":
+                            round(
+                                member_best_similarity,
+                                2
+                            )
+
+                    })
+
+        # =================================
+        # 9. Return complete analysis
+        # =================================
 
         return {
 
@@ -289,5 +487,11 @@ class CoverageAnalyzer:
                 missing_skills,
 
             "skill_owners":
-                skill_owners
+                skill_owners,
+
+            "skill_match_details":
+                skill_match_details,
+
+            "skill_similarity_threshold":
+                SKILL_SIMILARITY_THRESHOLD
         }

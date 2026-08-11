@@ -5,6 +5,10 @@ from services.agents.responsibility_agent import (
 from services.matching.semantic_role_matcher import (
     role_similarity
 )
+from services.team_builder.coverage_analyzer import (
+    CoverageAnalyzer
+)
+
 
 
 MIN_PRIMARY_SCORE = 40
@@ -235,6 +239,10 @@ def build_team(
     ranked_candidates
 ):
 
+    # --------------------------------
+    # Step 1: Primary role assignment
+    # --------------------------------
+
     primary_result = assign_primary_roles(
         project_requirements,
         ranked_candidates
@@ -248,10 +256,78 @@ def build_team(
         "unassigned_roles"
     ]
 
+    # --------------------------------
+    # Step 2: Analyze current coverage
+    # --------------------------------
+
+    coverage_analyzer = CoverageAnalyzer()
+
+    initial_coverage = coverage_analyzer.analyze(
+        project_requirements,
+        selected_team
+    )
+
+    print(
+        "\n========== INITIAL COVERAGE =========="
+    )
+
+    print(
+        "Missing Roles:",
+        initial_coverage["missing_roles"]
+    )
+
+    print(
+        "Missing Skills:",
+        initial_coverage["missing_skills"]
+    )
+
+    print(
+        "======================================\n"
+    )
+
+    # --------------------------------
+    # Step 3: Use actual missing roles
+    # --------------------------------
+
+    missing_roles = initial_coverage[
+        "missing_roles"
+    ]
+
+    # --------------------------------
+    # Step 4: Assign secondary roles
+    # --------------------------------
+
     selected_team = assign_secondary_roles(
         project_requirements,
         selected_team,
-        unassigned_roles
+        missing_roles
+    )
+
+    # --------------------------------
+    # Step 5: Final coverage analysis
+    # --------------------------------
+
+    final_coverage = coverage_analyzer.analyze(
+        project_requirements,
+        selected_team
+    )
+
+    print(
+        "\n========== FINAL COVERAGE =========="
+    )
+
+    print(
+        "Missing Roles:",
+        final_coverage["missing_roles"]
+    )
+
+    print(
+        "Missing Skills:",
+        final_coverage["missing_skills"]
+    )
+
+    print(
+        "====================================\n"
     )
 
     return selected_team

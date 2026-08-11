@@ -1,10 +1,20 @@
 from services.recruiter_agent import RecruiterAgent
+
 from services.team_builder.coverage_analyzer import (
     CoverageAnalyzer
 )
 
 
+# -----------------------------------------
+# Create Recruiter Agent
+# -----------------------------------------
+
 agent = RecruiterAgent()
+
+
+# -----------------------------------------
+# Recruit the team
+# -----------------------------------------
 
 result = agent.recruit_team(
     "AI Healthcare Assistant",
@@ -16,16 +26,49 @@ result = agent.recruit_team(
     """
 )
 
-final_team = result["final_team"]
+
+# -----------------------------------------
+# Get project requirements
+# -----------------------------------------
+
+project_requirements = result[
+    "project_requirements"
+]
+
+
+# -----------------------------------------
+# Get final team
+# -----------------------------------------
+
+selected_team = result[
+    "final_team"
+]
+
+
+# -----------------------------------------
+# Create Coverage Analyzer
+# -----------------------------------------
 
 analyzer = CoverageAnalyzer()
 
+
+# -----------------------------------------
+# Analyze coverage
+# -----------------------------------------
+
 coverage = analyzer.analyze(
-    result["project_requirements"],
-    final_team
+    project_requirements,
+    selected_team
 )
 
-print("\n========== COVERAGE ANALYSIS ==========")
+
+# -----------------------------------------
+# Print result
+# -----------------------------------------
+
+print(
+    "\n========== COVERAGE ANALYSIS ==========\n"
+)
 
 print(
     "Required Roles:",
@@ -56,11 +99,17 @@ print(
     "Missing Skills:",
     coverage["missing_skills"]
 )
+
 print(
     "Skill Owners:",
     coverage["skill_owners"]
 )
 
+print(
+    "Skill Match Details:",
+    coverage["skill_match_details"]
+)
 
-
-print("=======================================\n")
+print(
+    "=======================================\n"
+)
