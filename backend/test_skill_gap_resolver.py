@@ -5,17 +5,7 @@ from services.team_builder.skill_gap_resolver import (
 )
 
 
-# -----------------------------------------
-# Get all students
-# -----------------------------------------
-
 students = get_all_students()
-
-
-# -----------------------------------------
-# Example selected team
-# -----------------------------------------
-
 selected_team = [
 
     {
@@ -39,38 +29,16 @@ selected_team = [
     }
 ]
 
-
-# -----------------------------------------
-# Missing skills detected by
-# Coverage Analyzer
-# -----------------------------------------
-
 missing_skills = [
     "NLP"
 ]
 
-
-# -----------------------------------------
-# Create resolver
-# -----------------------------------------
-
 resolver = SkillGapResolver()
-
-
-# -----------------------------------------
-# Find candidates
-# -----------------------------------------
-
 recommendations = resolver.find_candidates(
     missing_skills,
     students,
     selected_team
 )
-
-
-# -----------------------------------------
-# Print results
-# -----------------------------------------
 
 print(
     "\n========== SKILL GAP RESOLUTION ==========\n"
@@ -84,38 +52,58 @@ for recommendation in recommendations:
         recommendation["missing_skill"]
     )
 
-    candidates = recommendation[
-        "candidates"
-    ]
+    print(
+        "Status:",
+        recommendation["status"]
+    )
 
-    if not candidates:
+    print(
+        "Genuine Skill Gap:",
+        recommendation["is_genuine_gap"]
+    )
 
-        print(
-            "No suitable candidate found."
-        )
+    print(
+        "Best Candidate:",
+        recommendation["best_candidate"]
+    )
 
-    else:
+    print(
+        "Recommendation:",
+        recommendation["recommendation"]
+    )
 
-        for candidate in candidates:
+    print(
+        "\nAll Candidates:"
+    )
+
+    if recommendation["candidates"]:
+
+        for candidate in recommendation["candidates"]:
 
             print(
-                "Candidate:",
+                "  Student:",
                 candidate["student"]
             )
 
             print(
-                "Matched Skill:",
+                "  Matched Skill:",
                 candidate["matched_skill"]
             )
 
             print(
-                "Similarity:",
+                "  Similarity:",
                 candidate["similarity"]
             )
 
-            print(
-                "-----------------------------------"
-            )
+    else:
+
+        print(
+            "  No suitable candidate found."
+        )
+
+    print(
+        "-------------------------------------------"
+    )
 
 
 print(

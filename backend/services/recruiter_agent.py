@@ -1,11 +1,26 @@
 from services.llm.llm_requirement_analyzer import (
     analyze_project_requirements
 )
-from services.student_service import get_all_students
-from services.student_profile_builder import StudentProfileBuilder
-from services.matching.candidate_search import filter_candidates
-from services.ranking.candidate_ranker import rank_candidates
-from services.team_builder.team_builder import build_team
+
+from services.student_service import (
+    get_all_students
+)
+
+from services.student_profile_builder import (
+    StudentProfileBuilder
+)
+
+from services.matching.candidate_search import (
+    filter_candidates
+)
+
+from services.ranking.candidate_ranker import (
+    rank_candidates
+)
+
+from services.team_builder.team_builder import (
+    build_team
+)
 
 
 class RecruiterAgent:
@@ -22,49 +37,85 @@ class RecruiterAgent:
         )
 
         return requirements
-    def build_student_profiles(self):
+
+    def build_student_profiles(
+        self
+    ):
+
         students = get_all_students()
 
         builder = StudentProfileBuilder()
 
-        profiles = builder.build_profiles(students)
+        profiles = builder.build_profiles(
+            students
+        )
 
         return profiles
-    def recruit_team(self, title, description):
-        requirements = self.understand_project(
+
+    def recruit_team(
+        self,
         title,
         description
-    )
+    ):
 
-        student_profiles = self.build_student_profiles()
+
+        requirements = self.understand_project(
+            title,
+            description
+        )
+
+        student_profiles = (
+            self.build_student_profiles()
+        )
+
 
         candidates = self.search_candidates(
-        requirements,
-        student_profiles
+            requirements,
+            student_profiles
         )
-    
+
         ranked_candidates = rank_candidates(
-        requirements,
-        candidates
+            requirements,
+            candidates
         )
-        final_team = build_team(
-             requirements,
-             ranked_candidates
-        )     
-        
+
+        team_result = build_team(
+            requirements,
+            ranked_candidates
+        )
+
+      
 
         return {
-             "project_requirements": requirements,
-              "final_team": final_team
-    }
+
+            "project_requirements":
+                requirements,
+
+            "final_team":
+                team_result[
+                    "final_team"
+                ],
+
+            "coverage":
+                team_result[
+                    "coverage"
+                ],
+
+            "skill_gaps":
+                team_result[
+                    "skill_gaps"
+                ]
+        }
 
     def search_candidates(
-            self,
-            project_requirements,
-            student_profiles
-):
-        candidates = filter_candidates(
+        self,
         project_requirements,
         student_profiles
-    )
+    ):
+
+        candidates = filter_candidates(
+            project_requirements,
+            student_profiles
+        )
+
         return candidates

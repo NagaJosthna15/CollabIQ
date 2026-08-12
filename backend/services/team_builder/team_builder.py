@@ -8,6 +8,13 @@ from services.matching.semantic_role_matcher import (
 from services.team_builder.coverage_analyzer import (
     CoverageAnalyzer
 )
+from services.team_builder.skill_gap_resolver import (
+    SkillGapResolver
+)
+
+from services.student_service import (
+    get_all_students
+)
 
 
 
@@ -46,41 +53,27 @@ def assign_primary_roles(
 
             student_name = profile["student"]
 
-            # Do not assign the same student
-            # to multiple primary roles
             if student_name in used_students:
                 continue
 
-            # --------------------------------
-            # 1. Semantic Role Similarity
-            # --------------------------------
 
             similarity = role_similarity(
                 role,
                 profile["recommended_role"]
             )
 
-            # --------------------------------
-            # 2. Skill Score
-            # --------------------------------
+           
 
             skill_score = candidate["scores"].get(
                 "skill",
                 0
             )
 
-            # --------------------------------
-            # 3. Overall Candidate Ranking
-            # --------------------------------
-
             ranking_score = candidate["scores"].get(
                 "final",
                 0
             )
 
-            # --------------------------------
-            # Combined Primary Role Score
-            # --------------------------------
 
             combined_score = (
                 (similarity * 40)
@@ -102,9 +95,6 @@ def assign_primary_roles(
                 round(combined_score, 2)
             )
 
-            # --------------------------------
-            # Select best candidate
-            # --------------------------------
 
             if combined_score > best_score:
 
@@ -112,9 +102,6 @@ def assign_primary_roles(
 
                 best_candidate = candidate
 
-        # --------------------------------
-        # Assign Primary Role
-        # --------------------------------
 
         if (
             best_candidate is not None
@@ -239,9 +226,6 @@ def build_team(
     ranked_candidates
 ):
 
-    # --------------------------------
-    # Step 1: Primary role assignment
-    # --------------------------------
 
     primary_result = assign_primary_roles(
         project_requirements,
@@ -252,13 +236,6 @@ def build_team(
         "selected_team"
     ]
 
-    unassigned_roles = primary_result[
-        "unassigned_roles"
-    ]
-
-    # --------------------------------
-    # Step 2: Analyze current coverage
-    # --------------------------------
 
     coverage_analyzer = CoverageAnalyzer()
 
@@ -285,17 +262,9 @@ def build_team(
         "======================================\n"
     )
 
-    # --------------------------------
-    # Step 3: Use actual missing roles
-    # --------------------------------
-
     missing_roles = initial_coverage[
         "missing_roles"
     ]
-
-    # --------------------------------
-    # Step 4: Assign secondary roles
-    # --------------------------------
 
     selected_team = assign_secondary_roles(
         project_requirements,
@@ -303,9 +272,7 @@ def build_team(
         missing_roles
     )
 
-    # --------------------------------
-    # Step 5: Final coverage analysis
-    # --------------------------------
+   
 
     final_coverage = coverage_analyzer.analyze(
         project_requirements,
@@ -330,4 +297,60 @@ def build_team(
         "====================================\n"
     )
 
-    return selected_team
+    missing_skills = final_coverage[
+        "missing_skills"
+    ]
+
+    skill_gap_resolver = SkillGapResolver()
+
+    all_students = get_all_students()
+
+    skill_gap_report = (
+        skill_gap_resolver.find_candidates(
+            missing_skills,
+            all_students,
+            selected_team
+        )
+    )
+
+
+    print(
+        "\n========== SKILL GAP REPORT =========="
+    )
+
+    for gap in skill_gap_report:
+
+        print(
+            "\nMissing Skill:",
+            gap["missing_skill"]
+        )
+
+        print(
+            "Status:",
+            gap["status"]
+        )
+
+        print(
+            "Genuine Skill Gap:",
+            gap["is_genuine_gap"]
+        )
+
+        print(
+            "Best Candidate:",
+            gap["best_candidate"]
+        )
+
+        print(
+            "Recommendation:",
+            gap["recommendation"]
+        )
+
+    print(
+        "\n======================================\n"
+    )
+    return {
+        "final_team": selected_team,
+        "coverage": final_coverage,
+        "skill_gaps": skill_gap_report
+    
+    }

@@ -1,4 +1,6 @@
-from services.recruiter_agent import RecruiterAgent
+from services.recruiter_agent import (
+    RecruiterAgent
+)
 
 
 agent = RecruiterAgent()
@@ -20,14 +22,39 @@ print(
 )
 
 print(
-    result["project_requirements"]
+    result[
+        "project_requirements"
+    ]
 )
-
 
 print(
     "\n========== FINAL TEAM ==========\n"
 )
 
 print(
-    result["final_team"]
+    result[
+        "final_team"
+    ]
+)
+
+
+print(
+    "\n========== FINAL COVERAGE ==========\n"
+)
+
+print(
+    result[
+        "coverage"
+    ]
+)
+
+
+print(
+    "\n========== SKILL GAPS ==========\n"
+)
+
+print(
+    result[
+        "skill_gaps"
+    ]
 )
