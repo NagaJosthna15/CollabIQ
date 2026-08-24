@@ -1,5 +1,14 @@
 import json
 from .client import client
+import os
+from dotenv import load_dotenv
+from groq import Groq
+
+load_dotenv()
+
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
 
 
 def analyze_project_requirements(title, description):
@@ -66,7 +75,7 @@ Choose the smallest team capable of successfully completing the project.
 """
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         messages=[
             {
                 "role": "user",
