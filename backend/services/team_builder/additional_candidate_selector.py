@@ -342,7 +342,7 @@ class AdditionalCandidateSelector:
                         candidate_role
 
                 })
-
+              
             if not round_candidates:
                 break
 
@@ -355,6 +355,16 @@ class AdditionalCandidateSelector:
                 ),
                 reverse=True
             )
+
+            minimum_score = 10.0
+            round_candidates = [
+                candidate
+                for candidate in round_candidates
+                if candidate["score"] >= minimum_score
+            ]
+            if not round_candidates:
+                break
+
 
             best_candidate = round_candidates[0]
 
