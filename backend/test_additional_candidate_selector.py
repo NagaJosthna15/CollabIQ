@@ -1,320 +1,367 @@
+from services.team_builder.additional_candidate_selector import (
+    AdditionalCandidateSelector
+)
+
 from services.recruiter_agent import RecruiterAgent
-from services.team_builder.additional_candidate_selector import AdditionalCandidateSelector
-from services.ranking.candidate_ranker import rank_candidates
 
 
-agent = RecruiterAgent()
+def normalize_name(name):
+    if not name:
+        return ""
 
-requirements = agent.understand_project(
-    "AI Powered Healthcare Management System",
-    """
-    Build an AI-powered healthcare management platform that helps
-    hospitals manage patient data, appointments, medical records,
-    healthcare analytics, and intelligent recommendations.
+    return "".join(
+        str(name).lower().split()
+    )
 
-    The system should include a React frontend, Python backend APIs,
-    MongoDB database, machine learning and NLP capabilities,
-    REST APIs, authentication, Docker, CI/CD, cloud deployment,
-    healthcare data privacy, and HIPAA compliance.
-    """
-)
 
-student_profiles = agent.build_student_profiles()
+def main():
 
-selected_team = [
-    profile
-    for profile in student_profiles
-    if profile.get("student") in [
-        "Jyoshna",
-        "Ananya Singh"
+    agent = RecruiterAgent()
+
+    students = agent.build_student_profiles()
+
+    if not students:
+        print("No student profiles were returned.")
+        return
+
+    print("\n========== ALL STUDENTS ==========\n")
+
+    for student in students:
+        print(
+            student.get("student", ""),
+            student.get("skills", []),
+            student.get("recommended_role", "")
+        )
+
+    current_team_names = {
+        normalize_name("Jyoshna"),
+        normalize_name("Ananya Singh")
+    }
+
+    current_team = [
+        student
+        for student in students
+        if normalize_name(
+            student.get("student", "")
+        ) in current_team_names
     ]
-]
 
-print("\n========== CURRENT TEAM ==========\n")
+    available_candidates = [
+        student
+        for student in students
+        if normalize_name(
+            student.get("student", "")
+        ) not in current_team_names
+    ]
 
-for member in selected_team:
+    print("\n========== CURRENT TEAM ==========\n")
 
-    print(
-        f"Student: {member.get('student')}"
-    )
-
-    print(
-        f"Recommended Role: {member.get('recommended_role', '')}"
-    )
-
-    print(
-        f"Skills: {member.get('skills', [])}"
-    )
-
-    print(
-        f"Resume Skills: {member.get('resume_skills', [])}"
-    )
-
-    print(
-        "----------------------------------"
-    )
-
-
-ranked_candidates = rank_candidates(
-    requirements,
-    student_profiles
-)
-
-
-selector = AdditionalCandidateSelector()
-
-
-result = selector.select_candidates(
-    project_requirements=requirements,
-    student_profiles=student_profiles,
-    selected_team=selected_team,
-    ranked_candidates=ranked_candidates,
-    number_needed=4
-)
-
-
-print(
-    "\n========== ADDITIONAL CANDIDATE SELECTION ==========\n"
-)
-
-
-print(
-    f"Number Requested: {result['number_requested']}"
-)
-
-
-print("\nMissing Skills:")
-
-missing_skills = requirements.get(
-    "required_skills",
-    []
-)
-
-if missing_skills:
-
-    for skill in missing_skills:
-
+    for student in current_team:
         print(
-            f"- {skill}"
+            f"Student: {student.get('student', '')}"
         )
 
-else:
-
-    print(
-        "- No missing skills"
-    )
-
-
-print("\nMissing Roles:")
-
-missing_roles = requirements.get(
-    "preferred_roles",
-    []
-)
-
-if missing_roles:
-
-    for role in missing_roles:
-
         print(
-            f"- {role}"
+            f"Recommended Role: "
+            f"{student.get('recommended_role', '')}"
         )
 
-else:
+        print(
+            f"Skills: "
+            f"{student.get('skills', [])}"
+        )
 
-    print(
-        "- No missing roles"
+        print(
+            f"Resume Skills: "
+            f"{student.get('resume_skills', [])}"
+        )
+
+        print("----------------------------------")
+
+    project_requirements = {
+        "skills": [
+            "React",
+            "TypeScript",
+            "JavaScript",
+            "HTML",
+            "CSS",
+            "Python",
+            "FastAPI",
+            "Flask",
+            "REST API",
+            "MongoDB",
+            "Machine Learning",
+            "TensorFlow",
+            "PyTorch",
+            "scikit-learn",
+            "NLP",
+            "Hugging Face Transformers",
+            "Docker",
+            "Kubernetes",
+            "CI/CD",
+            "GitHub Actions",
+            "AWS",
+            "Azure",
+            "GCP",
+            "JWT",
+            "OAuth2",
+            "HIPAA",
+            "Security"
+        ],
+
+        "roles": [
+            "Frontend Engineer",
+            "Backend Engineer",
+            "Machine Learning Engineer",
+            "NLP Engineer",
+            "DevOps Engineer",
+            "Cloud Engineer",
+            "Security Engineer",
+            "Compliance Engineer"
+        ]
+    }
+
+    selector = AdditionalCandidateSelector()
+
+    result = selector.select_candidates(
+        project_requirements,
+        current_team,
+        available_candidates,
+        4
     )
 
+    print(
+        "\n========== ADDITIONAL CANDIDATE SELECTION ==========\n"
+    )
 
-print("\nRecommended Candidates:\n")
+    print(
+        "Number Requested:",
+        result.get(
+            "number_requested",
+            4
+        )
+    )
 
+    print("\nMissing Skills:")
 
-recommended_candidates = result.get(
-    "recommended_candidates",
-    []
-)
+    for skill in result.get(
+        "missing_skills",
+        []
+    ):
+        print(f"- {skill}")
 
+    print("\nMissing Roles:")
 
-if recommended_candidates:
+    for role in result.get(
+        "missing_roles",
+        []
+    ):
+        print(f"- {role}")
+
+    recommendations = result.get(
+        "recommended_candidates",
+        []
+    )
+
+    print("\nRecommended Candidates:\n")
+
+    if not recommendations:
+        print(
+            "No suitable candidates found."
+        )
 
     for index, candidate in enumerate(
-        recommended_candidates,
+        recommendations,
         start=1
     ):
 
+        print(f"#{index}")
+
         print(
-            f"#{index}"
+            "Student:",
+            candidate.get(
+                "student_name",
+                ""
+            )
         )
 
         print(
-            f"Student: {candidate.get('student')}"
+            "Overall Score:",
+            candidate.get(
+                "overall_score",
+                0
+            )
         )
 
         print(
-            f"Overall Score: {candidate.get('score', 0)}"
+            "Matched Skill:",
+            candidate.get(
+                "matched_skill"
+            ) or "None"
         )
 
         print(
-            f"Matched Skill: {candidate.get('matched_skill')}"
+            "Skill Similarity:",
+            candidate.get(
+                "skill_similarity",
+                0
+            )
         )
 
         print(
-            f"Skill Similarity: {candidate.get('skill_similarity', 0)}"
+            "Matched Role:",
+            candidate.get(
+                "matched_role"
+            ) or "None"
         )
 
         print(
-            f"Matched Role: {candidate.get('matched_role')}"
+            "Role Similarity:",
+            candidate.get(
+                "role_similarity",
+                0
+            )
         )
 
         print(
-            f"Role Similarity: {candidate.get('role_similarity', 0)}"
+            "Ranking Score:",
+            candidate.get(
+                "ranking_score",
+                0
+            )
         )
 
         print(
-            f"Ranking Score: {candidate.get('ranking_score', 0)}"
+            "Recommended Role:",
+            candidate.get(
+                "recommended_role",
+                ""
+            )
         )
 
-        print(
-            f"Recommended Role: {candidate.get('recommended_role', '')}"
-        )
-
-        print(
-            "----------------------------------"
-        )
-
-else:
+        print("----------------------------------")
 
     print(
-        "No suitable candidates found."
+        "\n========== SELECTION ROUNDS ==========\n"
+    )
+
+    rounds = result.get(
+        "selection_rounds",
+        []
+    )
+
+    if not rounds:
+        print(
+            "No selection rounds completed."
+        )
+
+    for round_data in rounds:
+
+        print(
+            "Round:",
+            round_data.get(
+                "round",
+                ""
+            )
+        )
+
+        print(
+            "Selected:",
+            round_data.get(
+                "selected_student",
+                ""
+            )
+        )
+
+        print(
+            "Score:",
+            round_data.get(
+                "score",
+                0
+            )
+        )
+
+        print(
+            "Matched Skill:",
+            round_data.get(
+                "matched_skill"
+            ) or "None"
+        )
+
+        print(
+            "Matched Role:",
+            round_data.get(
+                "matched_role"
+            ) or "None"
+        )
+
+        print("----------------------------------")
+
+    print(
+        "\n========== REMAINING GAPS ==========\n"
+    )
+
+    print("Remaining Skills:")
+
+    for skill in result.get(
+        "remaining_skills",
+        []
+    ):
+        print(f"- {skill}")
+
+    print("\nRemaining Roles:")
+
+    for role in result.get(
+        "remaining_roles",
+        []
+    ):
+        print(f"- {role}")
+
+    print(
+        "\n========== SELECTION SUMMARY ==========\n"
+    )
+
+    print(
+        "Current Team Size:",
+        len(current_team)
+    )
+
+    print(
+        "Additional Members Requested:",
+        result.get(
+            "number_requested",
+            4
+        )
+    )
+
+    print(
+        "Recommended Members:",
+        result.get(
+            "recommended_members",
+            0
+        )
+    )
+
+    print(
+        "Remaining Members Needed:",
+        result.get(
+            "remaining_members_needed",
+            0
+        )
+    )
+
+    print(
+        "Status:",
+        result.get(
+            "status",
+            "unknown"
+        )
+    )
+
+    print(
+        "\n=======================================\n"
     )
 
 
-print(
-    "\n========== SELECTION ROUNDS ==========\n"
-)
-
-
-selection_rounds = result.get(
-    "selection_rounds",
-    []
-)
-
-
-if selection_rounds:
-
-    for selection_round in selection_rounds:
-
-        print(
-            f"Round: {selection_round.get('round')}"
-        )
-
-        print(
-            f"Selected: {selection_round.get('student')}"
-        )
-
-        print(
-            f"Score: {selection_round.get('score', 0)}"
-        )
-
-        print(
-            f"Matched Skill: {selection_round.get('matched_skill')}"
-        )
-
-        print(
-            f"Matched Role: {selection_round.get('matched_role')}"
-        )
-
-        print(
-            "----------------------------------"
-        )
-
-else:
-
-    print(
-        "No selection rounds completed."
-    )
-
-
-print(
-    "\n========== REMAINING GAPS ==========\n"
-)
-
-
-print("Remaining Skills:")
-
-
-remaining_skills = result.get(
-    "remaining_skills",
-    []
-)
-
-
-if remaining_skills:
-
-    for skill in remaining_skills:
-
-        print(
-            f"- {skill}"
-        )
-
-else:
-
-    print(
-        "- No remaining skills"
-    )
-
-
-print("\nRemaining Roles:")
-
-
-remaining_roles = result.get(
-    "remaining_roles",
-    []
-)
-
-
-if remaining_roles:
-
-    for role in remaining_roles:
-
-        print(
-            f"- {role}"
-        )
-
-else:
-
-    print(
-        "- No remaining roles"
-    )
-
-
-print(
-    "\n========== SELECTION SUMMARY ==========\n"
-)
-
-
-print(
-    f"Current Team Size: {len(selected_team)}"
-)
-
-print(
-    f"Additional Members Requested: {result['number_requested']}"
-)
-
-print(
-    f"Recommended Members: {result['recommended_members']}"
-)
-
-print(
-    f"Remaining Members Needed: {result['remaining_members_needed']}"
-)
-
-print(
-    f"Status: {result['status']}"
-)
-
-
-print(
-    "\n=======================================\n"
-)
+if __name__ == "__main__":
+    main()

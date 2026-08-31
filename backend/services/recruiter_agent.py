@@ -25,6 +25,11 @@ from services.team_builder.team_builder import (
 
 class RecruiterAgent:
 
+    def __init__(self):
+        # Store student profiles here
+        self.student_profiles = []
+
+
     def understand_project(
         self,
         title,
@@ -38,9 +43,8 @@ class RecruiterAgent:
 
         return requirements
 
-    def build_student_profiles(
-        self
-    ):
+
+    def build_student_profiles(self):
 
         students = get_all_students()
 
@@ -50,7 +54,12 @@ class RecruiterAgent:
             students
         )
 
+        # IMPORTANT:
+        # Save profiles so they can be accessed later
+        self.student_profiles = profiles
+
         return profiles
+
 
     def recruit_team(
         self,
@@ -58,16 +67,12 @@ class RecruiterAgent:
         description
     ):
 
-
         requirements = self.understand_project(
             title,
             description
         )
 
-        student_profiles = (
-            self.build_student_profiles()
-        )
-
+        student_profiles = self.build_student_profiles()
 
         candidates = self.search_candidates(
             requirements,
@@ -83,8 +88,6 @@ class RecruiterAgent:
             requirements,
             ranked_candidates
         )
-
-      
 
         return {
 
@@ -106,6 +109,7 @@ class RecruiterAgent:
                     "skill_gaps"
                 ]
         }
+
 
     def search_candidates(
         self,
