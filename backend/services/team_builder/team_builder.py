@@ -5,17 +5,22 @@ from services.agents.responsibility_agent import (
 from services.matching.semantic_role_matcher import (
     role_similarity
 )
+
 from services.team_builder.coverage_analyzer import (
     CoverageAnalyzer
 )
+
 from services.team_builder.skill_gap_resolver import (
     SkillGapResolver
+)
+
+from services.team_builder.additional_candidate_selector import (
+    AdditionalCandidateSelector
 )
 
 from services.student_service import (
     get_all_students
 )
-
 
 
 MIN_PRIMARY_SCORE = 40
@@ -25,16 +30,13 @@ def assign_primary_roles(
     project_requirements,
     ranked_candidates
 ):
-
     preferred_roles = project_requirements.get(
         "preferred_roles",
         []
     )
 
     selected_team = []
-
     unassigned_roles = []
-
     used_students = set()
 
     for role in preferred_roles:
@@ -49,31 +51,46 @@ def assign_primary_roles(
 
         for candidate in ranked_candidates:
 
-            profile = candidate["profile"]
+            profile = candidate.get(
+                "profile",
+                {}
+            )
 
-            student_name = profile["student"]
+            student_name = profile.get(
+                "student"
+            )
+
+            if not student_name:
+                continue
 
             if student_name in used_students:
                 continue
 
+            recommended_role = profile.get(
+                "recommended_role",
+                ""
+            )
 
             similarity = role_similarity(
                 role,
-                profile["recommended_role"]
+                recommended_role
             )
 
-           
-
-            skill_score = candidate["scores"].get(
+            skill_score = candidate.get(
+                "scores",
+                {}
+            ).get(
                 "skill",
                 0
             )
 
-            ranking_score = candidate["scores"].get(
+            ranking_score = candidate.get(
+                "scores",
+                {}
+            ).get(
                 "final",
                 0
             )
-
 
             combined_score = (
                 (similarity * 40)
@@ -82,9 +99,9 @@ def assign_primary_roles(
             )
 
             print(
-                profile["student"],
+                profile.get("student"),
                 "| Role:",
-                profile["recommended_role"],
+                recommended_role,
                 "| Similarity:",
                 round(similarity, 2),
                 "| Skill:",
@@ -95,13 +112,10 @@ def assign_primary_roles(
                 round(combined_score, 2)
             )
 
-
             if combined_score > best_score:
 
                 best_score = combined_score
-
                 best_candidate = candidate
-
 
         if (
             best_candidate is not None
@@ -165,7 +179,6 @@ def assign_secondary_roles(
     selected_team,
     unassigned_roles
 ):
-
     agent = ResponsibilityAgent()
 
     for role in unassigned_roles:
@@ -194,6 +207,9 @@ def assign_secondary_roles(
             "reason"
         )
 
+        if not selected_student:
+            continue
+
         for member in selected_team:
 
             student_name = member[
@@ -203,17 +219,12 @@ def assign_secondary_roles(
             if student_name == selected_student:
 
                 if "secondary_roles" not in member:
-
                     member["secondary_roles"] = []
 
                 member["secondary_roles"].append({
-
                     "role": role,
-
                     "confidence": confidence,
-
                     "reason": reason
-
                 })
 
                 break
@@ -226,16 +237,23 @@ def build_team(
     ranked_candidates
 ):
 
+    # ==========================================
+    # STEP 1: PRIMARY ROLE ASSIGNMENT
+    # ==========================================
 
     primary_result = assign_primary_roles(
         project_requirements,
         ranked_candidates
     )
 
-    selected_team = primary_result[
-        "selected_team"
-    ]
+    selected_team = primary_result.get(
+        "selected_team",
+        []
+    )
 
+    # ==========================================
+    # STEP 2: INITIAL COVERAGE ANALYSIS
+    # ==========================================
 
     coverage_analyzer = CoverageAnalyzer()
 
@@ -250,21 +268,32 @@ def build_team(
 
     print(
         "Missing Roles:",
-        initial_coverage["missing_roles"]
+        initial_coverage.get(
+            "missing_roles",
+            []
+        )
     )
 
     print(
         "Missing Skills:",
-        initial_coverage["missing_skills"]
+        initial_coverage.get(
+            "missing_skills",
+            []
+        )
     )
 
     print(
         "======================================\n"
     )
 
-    missing_roles = initial_coverage[
-        "missing_roles"
-    ]
+    # ==========================================
+    # STEP 3: SECONDARY ROLE ASSIGNMENT
+    # ==========================================
+
+    missing_roles = initial_coverage.get(
+        "missing_roles",
+        []
+    )
 
     selected_team = assign_secondary_roles(
         project_requirements,
@@ -272,7 +301,9 @@ def build_team(
         missing_roles
     )
 
-   
+    # ==========================================
+    # STEP 4: FINAL COVERAGE ANALYSIS
+    # ==========================================
 
     final_coverage = coverage_analyzer.analyze(
         project_requirements,
@@ -285,25 +316,187 @@ def build_team(
 
     print(
         "Missing Roles:",
-        final_coverage["missing_roles"]
+        final_coverage.get(
+            "missing_roles",
+            []
+        )
     )
 
     print(
         "Missing Skills:",
-        final_coverage["missing_skills"]
+        final_coverage.get(
+            "missing_skills",
+            []
+        )
     )
 
     print(
         "====================================\n"
     )
 
-    missing_skills = final_coverage[
-        "missing_skills"
-    ]
+    # ==========================================
+    # STEP 5: GET ALL STUDENTS
+    # ==========================================
+
+    all_students = get_all_students()
+
+    # ==========================================
+    # STEP 6: ADDITIONAL CANDIDATE SELECTION
+    # ==========================================
+
+    remaining_roles = final_coverage.get(
+        "missing_roles",
+        []
+    )
+
+    remaining_skills = final_coverage.get(
+        "missing_skills",
+        []
+    )
+
+    additional_candidate_result = {
+        "recommended_candidates": [],
+        "recommendations": [],
+        "selection_rounds": [],
+        "remaining_skills": remaining_skills,
+        "remaining_roles": remaining_roles,
+        "number_requested": 0,
+        "recommended_members": 0,
+        "number_selected": 0,
+        "remaining_members_needed": 0,
+        "status": "not_required"
+    }
+
+    number_requested = len(
+        remaining_roles
+    )
+
+    if number_requested > 0 or remaining_skills:
+
+        # If roles are already covered but
+        # skills are still missing
+        if number_requested == 0:
+
+            number_requested = min(
+                3,
+                len(remaining_skills)
+            )
+
+        additional_selector = (
+            AdditionalCandidateSelector()
+        )
+
+        additional_requirements = {
+            "skills": remaining_skills,
+            "roles": remaining_roles,
+
+            # Compatibility with existing
+            # project requirement structure
+            "preferred_roles": remaining_roles
+        }
+
+        additional_candidate_result = (
+            additional_selector.select_candidates(
+                additional_requirements,
+                selected_team,
+                all_students,
+                number_requested
+            )
+        )
+
+        print(
+            "\n========== ADDITIONAL CANDIDATE SELECTION =========="
+        )
+
+        print(
+            "Members Requested:",
+            number_requested
+        )
+
+        recommended_candidates = (
+            additional_candidate_result.get(
+                "recommended_candidates",
+                []
+            )
+        )
+
+        if recommended_candidates:
+
+            for index, candidate in enumerate(
+                recommended_candidates,
+                start=1
+            ):
+
+                print(
+                    f"\n#{index}"
+                )
+
+                print(
+                    "Student:",
+                    candidate.get(
+                        "student_name",
+                        candidate.get(
+                            "student",
+                            "Unknown"
+                        )
+                    )
+                )
+
+                print(
+                    "Recommended Role:",
+                    candidate.get(
+                        "recommended_role",
+                        "Not Available"
+                    )
+                )
+
+                print(
+                    "Matched Skill:",
+                    candidate.get(
+                        "matched_skill",
+                        "Not Available"
+                    )
+                )
+
+                print(
+                    "Matched Role:",
+                    candidate.get(
+                        "matched_role",
+                        "Not Available"
+                    )
+                )
+
+                print(
+                    "Score:",
+                    candidate.get(
+                        "ranking_score",
+                        candidate.get(
+                            "overall_score",
+                            0
+                        )
+                    )
+                )
+
+        else:
+
+            print(
+                "No additional candidates found."
+            )
+
+        print(
+            "\n=====================================================\n"
+        )
+
+    # ==========================================
+    # STEP 7: SKILL GAP RESOLUTION
+    # ==========================================
 
     skill_gap_resolver = SkillGapResolver()
 
-    all_students = get_all_students()
+    missing_skills = final_coverage.get(
+        "missing_skills",
+        []
+    )
 
     skill_gap_report = (
         skill_gap_resolver.find_candidates(
@@ -313,7 +506,6 @@ def build_team(
         )
     )
 
-
     print(
         "\n========== SKILL GAP REPORT =========="
     )
@@ -322,35 +514,55 @@ def build_team(
 
         print(
             "\nMissing Skill:",
-            gap["missing_skill"]
+            gap.get(
+                "missing_skill",
+                "Unknown"
+            )
         )
 
         print(
             "Status:",
-            gap["status"]
+            gap.get(
+                "status",
+                "Unknown"
+            )
         )
 
         print(
             "Genuine Skill Gap:",
-            gap["is_genuine_gap"]
+            gap.get(
+                "is_genuine_gap",
+                False
+            )
         )
 
         print(
             "Best Candidate:",
-            gap["best_candidate"]
+            gap.get(
+                "best_candidate",
+                "None"
+            )
         )
 
         print(
             "Recommendation:",
-            gap["recommendation"]
+            gap.get(
+                "recommendation",
+                "No recommendation available."
+            )
         )
 
     print(
         "\n======================================\n"
     )
+
+    # ==========================================
+    # FINAL RESPONSE
+    # ==========================================
+
     return {
         "final_team": selected_team,
         "coverage": final_coverage,
-        "skill_gaps": skill_gap_report
-    
+        "skill_gaps": skill_gap_report,
+        "additional_candidates": additional_candidate_result
     }

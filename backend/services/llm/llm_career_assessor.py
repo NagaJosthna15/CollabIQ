@@ -4,7 +4,68 @@ import time
 from .client import client
 
 
+MODEL_NAME = "openai/gpt-oss-120b"
+
+
+def _fallback_assessment():
+    return {
+        "overall_rating": "Unavailable",
+        "reason": "The AI could not generate a career assessment at this time.",
+        "strengths": [],
+        "growth_areas": [],
+        "career_advice": "",
+        "recommended_projects": [],
+        "next_learning_path": []
+    }
+
+
+def _parse_json_response(content):
+    if not content:
+        raise ValueError("Empty response from AI")
+
+    content = content.strip()
+
+    # Remove markdown code fences if present
+    content = re.sub(
+        r"^```(?:json)?\s*",
+        "",
+        content,
+        flags=re.IGNORECASE
+    )
+
+    content = re.sub(
+        r"\s*```$",
+        "",
+        content,
+        flags=re.IGNORECASE
+    ).strip()
+
+    start = content.find("{")
+    end = content.rfind("}")
+
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError("No valid JSON object found")
+
+    json_content = content[start:end + 1]
+
+    # Remove trailing commas
+    json_content = re.sub(
+        r",\s*}",
+        "}",
+        json_content
+    )
+
+    json_content = re.sub(
+        r",\s*]",
+        "]",
+        json_content
+    )
+
+    return json.loads(json_content)
+
+
 def generate_career_assessment(profile):
+
     prompt = f"""
 You are a Senior AI Career Mentor and Technical Recruiter.
 
@@ -49,73 +110,82 @@ Return exactly this JSON structure:
 }}
 """
 
-    last_error = None
+    try:
 
-    for attempt in range(3):
-        try:
-            response = client.chat.completions.create(
-                model="openai/gpt-oss-120b",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                temperature=0.2,
-                max_completion_tokens=1200
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.2,
+            max_completion_tokens=1200
+        )
+
+        content = response.choices[0].message.content
+
+        result = _parse_json_response(content)
+
+        return {
+            "overall_rating": result.get(
+                "overall_rating",
+                "Unavailable"
+            ),
+            "reason": result.get(
+                "reason",
+                ""
+            ),
+            "strengths": result.get(
+                "strengths",
+                []
+            ),
+            "growth_areas": result.get(
+                "growth_areas",
+                []
+            ),
+            "career_advice": result.get(
+                "career_advice",
+                ""
+            ),
+            "recommended_projects": result.get(
+                "recommended_projects",
+                []
+            ),
+            "next_learning_path": result.get(
+                "next_learning_path",
+                []
+            )
+        }
+
+    except Exception as e:
+
+        error_text = str(e)
+
+        # -----------------------------------------
+        # RATE LIMIT HANDLING
+        # -----------------------------------------
+
+        if (
+            "429" in error_text
+            or "rate_limit" in error_text.lower()
+            or "tokens per day" in error_text.lower()
+            or "tokens per minute" in error_text.lower()
+        ):
+            print(
+                "Career assessment skipped: "
+                "LLM rate limit reached."
             )
 
-            content = response.choices[0].message.content
+            return _fallback_assessment()
 
-            if not content:
-                raise ValueError("Empty response from AI")
+        # -----------------------------------------
+        # OTHER ERRORS
+        # -----------------------------------------
 
-            content = content.strip()
+        print(
+            f"Career assessment generation error: {e}"
+        )
 
-            content = re.sub(
-                r"^```(?:json)?\s*|\s*```$",
-                "",
-                content,
-                flags=re.IGNORECASE
-            ).strip()
-
-            start = content.find("{")
-            end = content.rfind("}")
-
-            if start == -1 or end == -1 or end <= start:
-                raise ValueError("No valid JSON object found")
-
-            json_content = content[start:end + 1]
-
-            json_content = re.sub(r",\s*}", "}", json_content)
-            json_content = re.sub(r",\s*]", "]", json_content)
-
-            result = json.loads(json_content)
-
-            return {
-                "overall_rating": result.get("overall_rating", "Unavailable"),
-                "reason": result.get("reason", ""),
-                "strengths": result.get("strengths", []),
-                "growth_areas": result.get("growth_areas", []),
-                "career_advice": result.get("career_advice", ""),
-                "recommended_projects": result.get("recommended_projects", []),
-                "next_learning_path": result.get("next_learning_path", [])
-            }
-
-        except Exception as e:
-            last_error = e
-
-            if attempt < 2:
-                time.sleep(2 * (attempt + 1))
-
-    print(f"Career assessment generation error: {last_error}")
-
-    return {
-        "overall_rating": "Unavailable",
-        "reason": "The AI could not generate a valid assessment.",
-        "strengths": [],
-        "growth_areas": [],
-        "career_advice": "",
-        "recommended_projects": [],
-        "next_learning_path": []
-    }
+        return _fallback_assessment()
