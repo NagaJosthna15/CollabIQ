@@ -21,6 +21,9 @@ from services.ranking.candidate_ranker import (
 from services.team_builder.team_builder import (
     build_team
 )
+from services.team_builder.additional_candidate_selector import (
+    AdditionalCandidateSelector
+)
 
 
 class RecruiterAgent:
@@ -28,6 +31,7 @@ class RecruiterAgent:
     def __init__(self):
         # Store student profiles here
         self.student_profiles = []
+        self.additional_candidate_selector = AdditionalCandidateSelector()
 
 
     def understand_project(
@@ -88,6 +92,14 @@ class RecruiterAgent:
             requirements,
             ranked_candidates
         )
+        additional_candidates_result = (
+            self.additional_candidate_selector.select_candidates(
+                 requirements=requirements,
+                 current_team=team_result["final_team"],
+                 all_students=student_profiles,
+                number_requested=4
+           )
+        )
 
         return {
 
@@ -107,7 +119,9 @@ class RecruiterAgent:
             "skill_gaps":
                 team_result[
                     "skill_gaps"
-                ]
+                ],
+            "additional_candidates": 
+                additional_candidates_result
         }
 
 

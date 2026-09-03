@@ -258,25 +258,26 @@ def assign_secondary_roles(
     return selected_team
 
 
+# ============================================================
+# CONVERT ADDITIONAL CANDIDATE TO TEAM MEMBER
+# ============================================================
 
-def convert_additional_candidate_to_team_member(candidate):
+def convert_additional_candidate_to_team_member(
+    candidate
+):
 
     profile = candidate.get(
         "profile",
         {}
     )
 
-    student_name = (
-        candidate.get("student_name")
-        or candidate.get("student")
-        or profile.get("student")
-        or profile.get("name")
-        or "Unknown"
-    )
-
     recommended_role = candidate.get(
         "recommended_role",
-        "Unknown"
+        "General Contributor"
+    )
+
+    matched_role = candidate.get(
+        "matched_role"
     )
 
     ranking_score = candidate.get(
@@ -287,24 +288,18 @@ def convert_additional_candidate_to_team_member(candidate):
         )
     )
 
-    # Make sure profile has student name
-    if not isinstance(profile, dict):
-        profile = {}
-
-    if "student" not in profile:
-        profile["student"] = student_name
-
-    if "recommended_role" not in profile:
-        profile["recommended_role"] = recommended_role
-
     return {
-        "role": recommended_role,
+
+        "role": (
+            matched_role
+            or recommended_role
+        ),
 
         "candidate": {
+
             "profile": profile,
 
             "scores": {
-                "final": ranking_score,
 
                 "skill": candidate.get(
                     "skill_similarity",
@@ -314,29 +309,37 @@ def convert_additional_candidate_to_team_member(candidate):
                 "role": candidate.get(
                     "role_similarity",
                     0
-                )
+                ),
+
+                "final": ranking_score
             }
         },
 
         "selection_score": ranking_score,
 
-        "selection_type": "additional",
+        "selection_type": "additional_candidate",
 
         "matched_skill": candidate.get(
             "matched_skill"
         ),
 
-        "matched_role": candidate.get(
-            "matched_role"
-        )
+        "matched_role": matched_role
     }
+
+
+# ============================================================
+# MAIN TEAM BUILDER
+# ============================================================
 
 def build_team(
     project_requirements,
     ranked_candidates
 ):
 
-  
+    # ========================================================
+    # STEP 1: PRIMARY ROLE ASSIGNMENT
+    # ========================================================
+
     primary_result = assign_primary_roles(
         project_requirements,
         ranked_candidates
@@ -346,6 +349,11 @@ def build_team(
         "selected_team",
         []
     )
+
+
+    # ========================================================
+    # STEP 2: INITIAL COVERAGE ANALYSIS
+    # ========================================================
 
     coverage_analyzer = CoverageAnalyzer()
 
@@ -378,6 +386,11 @@ def build_team(
         "======================================\n"
     )
 
+
+    # ========================================================
+    # STEP 3: SECONDARY ROLE ASSIGNMENT
+    # ========================================================
+
     missing_roles = initial_coverage.get(
         "missing_roles",
         []
@@ -389,6 +402,10 @@ def build_team(
         missing_roles
     )
 
+
+    # ========================================================
+    # STEP 4: COVERAGE AFTER SECONDARY ROLES
+    # ========================================================
 
     coverage_after_secondary = coverage_analyzer.analyze(
         project_requirements,
@@ -423,6 +440,10 @@ def build_team(
         "====================================================\n"
     )
 
+
+    # ========================================================
+    # STEP 5: ADDITIONAL CANDIDATE SELECTION
+    # ========================================================
 
     additional_candidate_result = {
 
@@ -501,6 +522,7 @@ def build_team(
             4
         )
 
+        # Build requirements only from current gaps
         additional_requirements = {
 
             "skills": remaining_skills,
@@ -537,7 +559,9 @@ def build_team(
         )
 
 
-      
+        # ====================================================
+        # ADD ADDITIONAL CANDIDATES TO FINAL TEAM
+        # ====================================================
 
         for candidate in additional_candidates:
 
@@ -583,7 +607,10 @@ def build_team(
         )
 
 
-  
+    # ========================================================
+    # STEP 6: FINAL COVERAGE AFTER ADDITIONAL CANDIDATES
+    # ========================================================
+
     final_coverage = coverage_analyzer.analyze(
         project_requirements,
         selected_team
@@ -614,7 +641,9 @@ def build_team(
     )
 
 
-  
+    # ========================================================
+    # STEP 7: SKILL GAP RESOLUTION
+    # ========================================================
 
     skill_gap_resolver = SkillGapResolver()
 
