@@ -18,9 +18,130 @@ class SkillGapResolver:
     who may be able to cover missing project skills.
 
     It also determines whether a missing skill is:
+
     1. Available in the candidate pool
     2. A genuine skill gap
     """
+
+    def get_selected_student_name(self, member):
+
+        """
+        Safely extract student name from a team member.
+        """
+
+        if not isinstance(member, dict):
+            return None
+
+        candidate = member.get(
+            "candidate",
+            {}
+        )
+
+        if isinstance(candidate, dict):
+
+            profile = candidate.get(
+                "profile",
+                {}
+            )
+
+            if isinstance(profile, dict):
+
+                student_name = profile.get(
+                    "student"
+                )
+
+                if student_name:
+                    return student_name
+
+        student_name = member.get(
+            "student_name"
+        )
+
+        if student_name:
+            return student_name
+
+        student_name = member.get(
+            "student"
+        )
+
+        if student_name:
+            return student_name
+
+        return None
+
+
+    def get_student_skills(self, student):
+
+        """
+        Collect skills from all possible student fields.
+        """
+
+        if not isinstance(student, dict):
+            return []
+
+        skills = []
+
+        primary_skills = student.get(
+            "skills",
+            []
+        )
+
+        if isinstance(primary_skills, list):
+
+            skills.extend(
+                primary_skills
+            )
+
+        resume_skills = student.get(
+            "resume_skills",
+            []
+        )
+
+        if isinstance(resume_skills, list):
+
+            skills.extend(
+                resume_skills
+            )
+
+        profile_skills = student.get(
+            "candidate_skills",
+            []
+        )
+
+        if isinstance(profile_skills, list):
+
+            skills.extend(
+                profile_skills
+            )
+
+        unique_skills = []
+
+        seen_skills = set()
+
+        for skill in skills:
+
+            if not skill:
+                continue
+
+            normalized = normalize_skill(
+                str(skill)
+            )
+
+            if (
+                normalized
+                and normalized not in seen_skills
+            ):
+
+                seen_skills.add(
+                    normalized
+                )
+
+                unique_skills.append(
+                    skill
+                )
+
+        return unique_skills
+
 
     def find_candidates(
         self,
@@ -29,98 +150,146 @@ class SkillGapResolver:
         selected_team
     ):
 
+        """
+        Find students outside the current team who can
+        potentially cover each missing skill.
+        """
+
+        # ====================================================
+        # BUILD SET OF ALREADY SELECTED STUDENTS
+        # ====================================================
 
         selected_students = set()
 
-        for member in selected_team:
+        for member in selected_team or []:
 
             student_name = (
-                member["candidate"]
-                ["profile"]
-                ["student"]
+                self.get_selected_student_name(
+                    member
+                )
             )
 
-            selected_students.add(
-                student_name
-            )
+            if student_name:
 
-      
+                selected_students.add(
+                    str(student_name).lower().strip()
+                )
+
+
+        # ====================================================
+        # STORE FINAL RECOMMENDATIONS
+        # ====================================================
 
         recommendations = []
 
-     
 
-        for missing_skill in missing_skills:
+        # ====================================================
+        # PROCESS EACH MISSING SKILL
+        # ====================================================
+
+        for missing_skill in missing_skills or []:
 
             candidates = []
 
-         
+
+            # ------------------------------------------------
+            # EXPAND REQUIRED SKILL
+            # ------------------------------------------------
 
             required_parts = expand_skill(
                 missing_skill
             )
 
-           
+            if not required_parts:
 
-            for student in all_students:
+                required_parts = [
+                    missing_skill
+                ]
+
+
+            # ------------------------------------------------
+            # CHECK EVERY AVAILABLE STUDENT
+            # ------------------------------------------------
+
+            for student in all_students or []:
+
+                if not isinstance(student, dict):
+                    continue
+
 
                 student_name = student.get(
                     "student"
                 )
 
-               
-
-                if (
-                    student_name
-                    in selected_students
-                ):
-
+                if not student_name:
                     continue
 
-               
 
-                student_skills = []
+                normalized_student_name = (
+                    str(student_name)
+                    .lower()
+                    .strip()
+                )
 
-                student_skills.extend(
-                    student.get(
-                        "skills",
-                        []
+
+                # Skip students already in team
+
+                if (
+                    normalized_student_name
+                    in selected_students
+                ):
+                    continue
+
+
+                # Get all student skills
+
+                student_skills = (
+                    self.get_student_skills(
+                        student
                     )
                 )
 
-                student_skills.extend(
-                    student.get(
-                        "resume_skills",
-                        []
-                    )
-                )
 
-              
+                if not student_skills:
+                    continue
 
-                student_skills = list(
-                    set(student_skills)
-                )
 
-                best_similarity = 0
+                best_similarity = 0.0
 
                 best_matched_skill = None
+
+
+                # --------------------------------------------
+                # MATCH REQUIRED SKILL AGAINST STUDENT SKILLS
+                # --------------------------------------------
 
                 for required_part in required_parts:
 
                     normalized_required_skill = (
                         normalize_skill(
-                            required_part
+                            str(required_part)
                         )
                     )
 
+
+                    if not normalized_required_skill:
+                        continue
+
+
                     for student_skill in student_skills:
 
-                       
                         normalized_student_skill = (
                             normalize_skill(
-                                student_skill
+                                str(student_skill)
                             )
                         )
+
+
+                        if not normalized_student_skill:
+                            continue
+
+
+                        # Exact match
 
                         if (
                             normalized_required_skill
@@ -129,37 +298,44 @@ class SkillGapResolver:
 
                             similarity = 1.0
 
-                        else:
 
+                        # Semantic match
+
+                        else:
 
                             similarity = skill_similarity(
                                 normalized_required_skill,
-                                student_skill
+                                normalized_student_skill
                             )
+
+
+                        # Update best match
+
                         if (
                             similarity
                             > best_similarity
                         ):
 
-                            best_similarity = (
-                                similarity
-                            )
+                            best_similarity = similarity
 
                             best_matched_skill = (
                                 student_skill
                             )
 
+
+                # --------------------------------------------
+                # ADD STUDENT IF MATCH IS GOOD ENOUGH
+                # --------------------------------------------
+
                 if (
-                    best_matched_skill
-                    is not None
+                    best_matched_skill is not None
                     and best_similarity
                     >= SKILL_GAP_THRESHOLD
                 ):
 
                     candidates.append({
 
-                        "student":
-                            student_name,
+                        "student": student_name,
 
                         "matched_skill":
                             best_matched_skill,
@@ -173,33 +349,71 @@ class SkillGapResolver:
                     })
 
 
+            # ====================================================
+            # SORT CANDIDATES
+            # ====================================================
+
             candidates.sort(
+
                 key=lambda candidate:
-                    candidate["similarity"],
+                    candidate.get(
+                        "similarity",
+                        0
+                    ),
+
                 reverse=True
             )
 
 
+            # ====================================================
+            # DETERMINE GAP STATUS
+            # ====================================================
+
             if candidates:
 
-                best_candidate = (
-                    candidates[0]
-                )
+
+                # --------------------------------------------
+                # CANDIDATE AVAILABLE
+                # --------------------------------------------
+
+                best_candidate = candidates[0]
 
                 status = (
                     "candidate_available"
                 )
 
+
+                candidate_name = (
+                    best_candidate.get(
+                        "student"
+                    )
+                    or "the selected candidate"
+                )
+
+
+                missing_skill_text = (
+                    str(missing_skill)
+                    if missing_skill is not None
+                    else "this skill"
+                )
+
+
                 recommendation = (
+
                     "Consider adding "
-                    + best_candidate["student"]
-                    + " to improve coverage "
-                    + "of "
-                    + missing_skill
+                    + str(candidate_name)
+                    + " to improve coverage of "
+                    + missing_skill_text
                     + "."
                 )
 
+
             else:
+
+
+                # --------------------------------------------
+                # GENUINE SKILL GAP
+                # --------------------------------------------
 
                 best_candidate = None
 
@@ -207,23 +421,47 @@ class SkillGapResolver:
                     "genuine_skill_gap"
                 )
 
-                recommendation = (
-                    "No suitable candidate "
-                    "with sufficient similarity "
-                    "was found. Consider "
-                    "upskilling an existing "
-                    "team member or recruiting "
-                    "an NLP-skilled candidate."
-                    if missing_skill.lower()
-                    in ["nlp", "nlp techniques"]
-                    else
-                    "Consider upskilling an "
-                    "existing team member or "
-                    "recruiting a candidate "
-                    "with this skill."
+
+                missing_skill_text = (
+                    str(missing_skill)
+                    if missing_skill is not None
+                    else ""
                 )
 
-           
+
+                if (
+                    missing_skill_text.lower()
+                    in [
+                        "nlp",
+                        "nlp techniques"
+                    ]
+                ):
+
+                    recommendation = (
+
+                        "No suitable candidate with "
+                        "sufficient similarity was found. "
+                        "Consider upskilling an existing "
+                        "team member or recruiting an "
+                        "NLP-skilled candidate."
+                    )
+
+
+                else:
+
+                    recommendation = (
+
+                        "No suitable candidate with "
+                        "sufficient similarity was found. "
+                        "Consider upskilling an existing "
+                        "team member or recruiting a "
+                        "candidate with this skill."
+                    )
+
+
+            # ====================================================
+            # SAVE RESULT FOR CURRENT SKILL
+            # ====================================================
 
             recommendations.append({
 
@@ -247,6 +485,9 @@ class SkillGapResolver:
 
             })
 
-    
+
+        # ====================================================
+        # RETURN ALL GAP RECOMMENDATIONS
+        # ====================================================
 
         return recommendations

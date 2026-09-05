@@ -26,9 +26,7 @@ from services.student_service import (
 MIN_PRIMARY_SCORE = 40
 
 
-# ============================================================
-# PRIMARY ROLE ASSIGNMENT
-# ============================================================
+
 
 def assign_primary_roles(
     project_requirements,
@@ -180,10 +178,6 @@ def assign_primary_roles(
     }
 
 
-# ============================================================
-# SECONDARY ROLE ASSIGNMENT
-# ============================================================
-
 def assign_secondary_roles(
     project_requirements,
     selected_team,
@@ -199,12 +193,29 @@ def assign_secondary_roles(
             role
         )
 
-        result = agent.assign_secondary_role(
-            role,
-            selected_team
-        )
+        try:
 
-        print(result)
+            result = agent.assign_secondary_role(
+                role,
+                selected_team
+            )
+
+            print(result)
+
+        except Exception as error:
+
+            print(
+                "Secondary role assignment skipped:",
+                role
+            )
+
+            print(
+                "Reason:",
+                str(error)
+            )
+
+            continue
+
 
         selected_student = result.get(
             "selected_student"
@@ -218,8 +229,16 @@ def assign_secondary_roles(
             "reason"
         )
 
+
         if not selected_student:
+
+            print(
+                "No student selected for:",
+                role
+            )
+
             continue
+
 
         for member in selected_team:
 
@@ -237,11 +256,13 @@ def assign_secondary_roles(
                 "student"
             )
 
+
             if student_name == selected_student:
 
                 if "secondary_roles" not in member:
 
                     member["secondary_roles"] = []
+
 
                 member["secondary_roles"].append({
 
@@ -253,9 +274,19 @@ def assign_secondary_roles(
 
                 })
 
+
+                print(
+                    "Secondary role assigned:",
+                    role,
+                    "→",
+                    selected_student
+                )
+
                 break
 
+
     return selected_team
+
 
 
 # ============================================================
