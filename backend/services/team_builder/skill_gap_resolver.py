@@ -1,11 +1,7 @@
-from services.matching.semantic_role_matcher import (
-    skill_similarity
-)
+import re
 
-from services.matching.skill_normalizer import (
-    normalize_skill,
-    expand_skill
-)
+from services.matching.semantic_role_matcher import skill_similarity
+from services.matching.skill_normalizer import normalize_skill, expand_skill
 
 
 SKILL_GAP_THRESHOLD = 0.70
@@ -13,135 +9,232 @@ SKILL_GAP_THRESHOLD = 0.70
 
 class SkillGapResolver:
 
-    """
-    Finds candidates outside the currently selected team
-    who may be able to cover missing project skills.
-
-    It also determines whether a missing skill is:
-
-    1. Available in the candidate pool
-    2. A genuine skill gap
-    """
-
     def get_selected_student_name(self, member):
-
-        """
-        Safely extract student name from a team member.
-        """
-
         if not isinstance(member, dict):
             return None
 
-        candidate = member.get(
-            "candidate",
-            {}
-        )
+        candidate = member.get("candidate", {})
 
         if isinstance(candidate, dict):
-
-            profile = candidate.get(
-                "profile",
-                {}
-            )
+            profile = candidate.get("profile", {})
 
             if isinstance(profile, dict):
-
-                student_name = profile.get(
-                    "student"
-                )
+                student_name = profile.get("student")
 
                 if student_name:
                     return student_name
 
-        student_name = member.get(
-            "student_name"
-        )
+        student_name = member.get("student_name")
 
         if student_name:
             return student_name
 
-        student_name = member.get(
-            "student"
-        )
+        student_name = member.get("student")
 
         if student_name:
             return student_name
 
         return None
 
-
     def get_student_skills(self, student):
-
-        """
-        Collect skills from all possible student fields.
-        """
-
         if not isinstance(student, dict):
             return []
 
         skills = []
 
-        primary_skills = student.get(
+        for field in [
             "skills",
-            []
-        )
-
-        if isinstance(primary_skills, list):
-
-            skills.extend(
-                primary_skills
-            )
-
-        resume_skills = student.get(
             "resume_skills",
-            []
-        )
+            "candidate_skills"
+        ]:
+            value = student.get(field, [])
 
-        if isinstance(resume_skills, list):
-
-            skills.extend(
-                resume_skills
-            )
-
-        profile_skills = student.get(
-            "candidate_skills",
-            []
-        )
-
-        if isinstance(profile_skills, list):
-
-            skills.extend(
-                profile_skills
-            )
+            if isinstance(value, list):
+                skills.extend(value)
 
         unique_skills = []
-
-        seen_skills = set()
+        seen = set()
 
         for skill in skills:
-
             if not skill:
                 continue
 
-            normalized = normalize_skill(
-                str(skill)
-            )
+            normalized = normalize_skill(str(skill))
 
-            if (
-                normalized
-                and normalized not in seen_skills
-            ):
-
-                seen_skills.add(
-                    normalized
-                )
-
-                unique_skills.append(
-                    skill
-                )
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                unique_skills.append(skill)
 
         return unique_skills
 
+    def parse_requirement(self, requirement):
+        if not requirement:
+            return {
+                "type": "simple",
+                "base": "",
+                "alternatives": []
+            }
+
+        text = str(requirement).strip()
+
+        match = re.match(
+            r"^(.*?)\s*\((.*?)\)\s*$",
+            text
+        )
+
+        if match:
+            base = match.group(1).strip()
+            inner = match.group(2).strip()
+
+            alternatives = [
+                part.strip()
+                for part in re.split(
+                    r",|/|\||\bor\b",
+                    inner,
+                    flags=re.IGNORECASE
+                )
+                if part.strip()
+            ]
+
+            return {
+                "type": "base_with_alternatives",
+                "base": base,
+                "alternatives": alternatives
+            }
+
+        if "/" in text:
+            alternatives = [
+                part.strip()
+                for part in text.split("/")
+                if part.strip()
+            ]
+
+            if len(alternatives) > 1:
+                return {
+                    "type": "alternatives",
+                    "base": "",
+                    "alternatives": alternatives
+                }
+
+        return {
+            "type": "simple",
+            "base": text,
+            "alternatives": []
+        }
+
+    def match_skill(self, required_skill, student_skills):
+        normalized_required = normalize_skill(
+            str(required_skill)
+        )
+
+        if not normalized_required:
+            return None
+
+        best_match = None
+        best_similarity = 0.0
+
+        for student_skill in student_skills:
+            normalized_student = normalize_skill(
+                str(student_skill)
+            )
+
+            if not normalized_student:
+                continue
+
+            if normalized_required == normalized_student:
+                similarity = 1.0
+            else:
+                similarity = skill_similarity(
+                    normalized_required,
+                    normalized_student
+                )
+
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_match = student_skill
+
+        if (
+            best_match is not None
+            and best_similarity >= SKILL_GAP_THRESHOLD
+        ):
+            return {
+                "matched_skill": best_match,
+                "similarity": round(best_similarity, 2)
+            }
+
+        return None
+
+    def match_any(self, requirements, student_skills):
+        best_match = None
+
+        for requirement in requirements:
+            expanded = expand_skill(requirement)
+
+            if not expanded:
+                expanded = [requirement]
+
+            for skill in expanded:
+                result = self.match_skill(
+                    skill,
+                    student_skills
+                )
+
+                if result is None:
+                    continue
+
+                if (
+                    best_match is None
+                    or result["similarity"]
+                    > best_match["similarity"]
+                ):
+                    best_match = result
+
+        return best_match
+
+    def match_requirement(self, requirement, student_skills):
+        parsed = self.parse_requirement(requirement)
+
+        if parsed["type"] == "simple":
+            return self.match_any(
+                [parsed["base"]],
+                student_skills
+            )
+
+        if parsed["type"] == "alternatives":
+            return self.match_any(
+                parsed["alternatives"],
+                student_skills
+            )
+
+        base = parsed["base"]
+        alternatives = parsed["alternatives"]
+
+        base_match = self.match_any(
+            [base],
+            student_skills
+        )
+
+        alternative_match = self.match_any(
+            alternatives,
+            student_skills
+        )
+
+        if base_match and alternative_match:
+            if (
+                alternative_match["similarity"]
+                >= base_match["similarity"]
+            ):
+                return alternative_match
+
+            return base_match
+
+        if alternative_match:
+            return alternative_match
+
+        if base_match:
+            return base_match
+
+        return None
 
     def find_candidates(
         self,
@@ -149,308 +242,96 @@ class SkillGapResolver:
         all_students,
         selected_team
     ):
-
-        """
-        Find students outside the current team who can
-        potentially cover each missing skill.
-        """
-
-        # ====================================================
-        # BUILD SET OF ALREADY SELECTED STUDENTS
-        # ====================================================
-
         selected_students = set()
 
         for member in selected_team or []:
-
-            student_name = (
-                self.get_selected_student_name(
-                    member
-                )
+            student_name = self.get_selected_student_name(
+                member
             )
 
             if student_name:
-
                 selected_students.add(
                     str(student_name).lower().strip()
                 )
 
-
-        # ====================================================
-        # STORE FINAL RECOMMENDATIONS
-        # ====================================================
-
         recommendations = []
 
-
-        # ====================================================
-        # PROCESS EACH MISSING SKILL
-        # ====================================================
-
         for missing_skill in missing_skills or []:
-
             candidates = []
 
-
-            # ------------------------------------------------
-            # EXPAND REQUIRED SKILL
-            # ------------------------------------------------
-
-            required_parts = expand_skill(
-                missing_skill
-            )
-
-            if not required_parts:
-
-                required_parts = [
-                    missing_skill
-                ]
-
-
-            # ------------------------------------------------
-            # CHECK EVERY AVAILABLE STUDENT
-            # ------------------------------------------------
-
             for student in all_students or []:
-
                 if not isinstance(student, dict):
                     continue
 
-
-                student_name = student.get(
-                    "student"
-                )
+                student_name = student.get("student")
 
                 if not student_name:
                     continue
 
-
-                normalized_student_name = (
+                normalized_name = (
                     str(student_name)
                     .lower()
                     .strip()
                 )
 
-
-                # Skip students already in team
-
-                if (
-                    normalized_student_name
-                    in selected_students
-                ):
+                if normalized_name in selected_students:
                     continue
 
-
-                # Get all student skills
-
-                student_skills = (
-                    self.get_student_skills(
-                        student
-                    )
+                student_skills = self.get_student_skills(
+                    student
                 )
-
 
                 if not student_skills:
                     continue
 
+                match = self.match_requirement(
+                    missing_skill,
+                    student_skills
+                )
 
-                best_similarity = 0.0
+                if match is None:
+                    continue
 
-                best_matched_skill = None
-
-
-                # --------------------------------------------
-                # MATCH REQUIRED SKILL AGAINST STUDENT SKILLS
-                # --------------------------------------------
-
-                for required_part in required_parts:
-
-                    normalized_required_skill = (
-                        normalize_skill(
-                            str(required_part)
-                        )
-                    )
-
-
-                    if not normalized_required_skill:
-                        continue
-
-
-                    for student_skill in student_skills:
-
-                        normalized_student_skill = (
-                            normalize_skill(
-                                str(student_skill)
-                            )
-                        )
-
-
-                        if not normalized_student_skill:
-                            continue
-
-
-                        # Exact match
-
-                        if (
-                            normalized_required_skill
-                            == normalized_student_skill
-                        ):
-
-                            similarity = 1.0
-
-
-                        # Semantic match
-
-                        else:
-
-                            similarity = skill_similarity(
-                                normalized_required_skill,
-                                normalized_student_skill
-                            )
-
-
-                        # Update best match
-
-                        if (
-                            similarity
-                            > best_similarity
-                        ):
-
-                            best_similarity = similarity
-
-                            best_matched_skill = (
-                                student_skill
-                            )
-
-
-                # --------------------------------------------
-                # ADD STUDENT IF MATCH IS GOOD ENOUGH
-                # --------------------------------------------
-
-                if (
-                    best_matched_skill is not None
-                    and best_similarity
-                    >= SKILL_GAP_THRESHOLD
-                ):
-
-                    candidates.append({
-
-                        "student": student_name,
-
-                        "matched_skill":
-                            best_matched_skill,
-
-                        "similarity":
-                            round(
-                                best_similarity,
-                                2
-                            )
-
-                    })
-
-
-            # ====================================================
-            # SORT CANDIDATES
-            # ====================================================
+                candidates.append({
+                    "student": student_name,
+                    "matched_skill": match["matched_skill"],
+                    "similarity": match["similarity"]
+                })
 
             candidates.sort(
-
-                key=lambda candidate:
-                    candidate.get(
-                        "similarity",
-                        0
-                    ),
-
+                key=lambda candidate: candidate.get(
+                    "similarity",
+                    0
+                ),
                 reverse=True
             )
 
-
-            # ====================================================
-            # DETERMINE GAP STATUS
-            # ====================================================
-
             if candidates:
-
-
-                # --------------------------------------------
-                # CANDIDATE AVAILABLE
-                # --------------------------------------------
-
                 best_candidate = candidates[0]
-
-                status = (
-                    "candidate_available"
-                )
-
-
-                candidate_name = (
-                    best_candidate.get(
-                        "student"
-                    )
-                    or "the selected candidate"
-                )
-
-
-                missing_skill_text = (
-                    str(missing_skill)
-                    if missing_skill is not None
-                    else "this skill"
-                )
-
+                status = "candidate_available"
 
                 recommendation = (
-
                     "Consider adding "
-                    + str(candidate_name)
+                    + str(best_candidate["student"])
                     + " to improve coverage of "
-                    + missing_skill_text
+                    + str(missing_skill)
                     + "."
                 )
 
-
             else:
-
-
-                # --------------------------------------------
-                # GENUINE SKILL GAP
-                # --------------------------------------------
-
                 best_candidate = None
+                status = "genuine_skill_gap"
 
-                status = (
-                    "genuine_skill_gap"
-                )
-
-
-                missing_skill_text = (
-                    str(missing_skill)
-                    if missing_skill is not None
-                    else ""
-                )
-
-
-                if (
-                    missing_skill_text.lower()
-                    in [
-                        "nlp",
-                        "nlp techniques"
-                    ]
-                ):
-
+                if "nlp" in str(missing_skill).lower():
                     recommendation = (
-
                         "No suitable candidate with "
                         "sufficient similarity was found. "
                         "Consider upskilling an existing "
                         "team member or recruiting an "
                         "NLP-skilled candidate."
                     )
-
-
                 else:
-
                     recommendation = (
-
                         "No suitable candidate with "
                         "sufficient similarity was found. "
                         "Consider upskilling an existing "
@@ -458,36 +339,13 @@ class SkillGapResolver:
                         "candidate with this skill."
                     )
 
-
-            # ====================================================
-            # SAVE RESULT FOR CURRENT SKILL
-            # ====================================================
-
             recommendations.append({
-
-                "missing_skill":
-                    missing_skill,
-
-                "status":
-                    status,
-
-                "best_candidate":
-                    best_candidate,
-
-                "candidates":
-                    candidates,
-
-                "recommendation":
-                    recommendation,
-
-                "is_genuine_gap":
-                    not bool(candidates)
-
+                "missing_skill": missing_skill,
+                "status": status,
+                "best_candidate": best_candidate,
+                "candidates": candidates,
+                "recommendation": recommendation,
+                "is_genuine_gap": not bool(candidates)
             })
-
-
-        # ====================================================
-        # RETURN ALL GAP RECOMMENDATIONS
-        # ====================================================
 
         return recommendations

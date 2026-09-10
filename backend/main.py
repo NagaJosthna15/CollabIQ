@@ -17,7 +17,7 @@ from services.github_analyzer import(
 from services.github_relevance import (
     calculate_github_relevance
 )
-from services.team_builder import build_balanced_team
+from services.team_builder.team_builder import build_team
 from services.student_intelligence import (
     build_student_profile
 )
@@ -333,7 +333,7 @@ def smart_team(project_id: str):
         students_collection.find()
     )
 
-    team = build_balanced_team(
+    team = build_team(
         project,
         students
     )

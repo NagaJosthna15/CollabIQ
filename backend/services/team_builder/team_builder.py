@@ -612,10 +612,6 @@ def build_team(
     print(
         "====================================\n"
     )
-
-
-  
-
     skill_gap_resolver = SkillGapResolver()
 
     all_students = get_all_students()
