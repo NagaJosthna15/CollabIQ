@@ -1,23 +1,23 @@
 from fastapi import FastAPI
-from models import Student
-from database import students_collection
+from bson import ObjectId
+from fastapi.encoders import jsonable_encoder
+from models import Student, Project
+from database import students_collection, projects_collection
 from fastapi import UploadFile, File
 from services.skill_extractor import extract_skills
 from bson import ObjectId
-from models import Student, Project
-from database import students_collection, projects_collection
 from services.matcher import calculate_match_score
 from services.team_optimizer import create_team
 from services.talent_scorer import calculate_talent_score
 from services.ranker import calculate_final_score
-from services.github_analyzer import(
+from services.github_analyzer import (
     get_github_profile,
     get_github_repositories
 )
 from services.github_relevance import (
     calculate_github_relevance
 )
-from services.team_builder.team_builder import build_team
+from services.recruiter_agent import RecruiterAgent
 from services.student_intelligence import (
     build_student_profile
 )
@@ -25,6 +25,29 @@ from services.team_success import (
     calculate_team_success
 )
 import shutil
+def make_json_safe(value):
+    if isinstance(value, ObjectId):
+        return str(value)
+
+    if isinstance(value, dict):
+        return {
+            str(key): make_json_safe(item)
+            for key, item in value.items()
+        }
+
+    if isinstance(value, list):
+        return [
+            make_json_safe(item)
+            for item in value
+        ]
+
+    if isinstance(value, tuple):
+        return [
+            make_json_safe(item)
+            for item in value
+        ]
+
+    return value
 
 app = FastAPI(
     title="CollabIQ API",
@@ -43,7 +66,9 @@ def create_student(student: Student):
 
     student_data = student.dict()
 
-    result = students_collection.insert_one(student_data)
+    result = students_collection.insert_one(
+        student_data
+    )
 
     return {
         "message": "Student added successfully",
@@ -72,12 +97,19 @@ async def upload_resume(
     file_path = f"uploads/{file.filename}"
 
     with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        shutil.copyfileobj(
+            file.file,
+            buffer
+        )
 
-    skills = extract_skills(file_path)
+    skills = extract_skills(
+        file_path
+    )
 
     result = students_collection.update_one(
-        {"_id": ObjectId(student_id)},
+        {
+            "_id": ObjectId(student_id)
+        },
         {
             "$set": {
                 "resume_skills": skills
@@ -96,7 +128,9 @@ def create_project(project: Project):
 
     project_data = project.dict()
 
-    result = projects_collection.insert_one(project_data)
+    result = projects_collection.insert_one(
+        project_data
+    )
 
     return {
         "message": "Project created successfully",
@@ -110,7 +144,9 @@ def get_projects():
 
     for project in projects_collection.find():
 
-        project["_id"] = str(project["_id"])
+        project["_id"] = str(
+            project["_id"]
+        )
 
         projects.append(project)
 
@@ -120,13 +156,19 @@ def get_projects():
 def find_matches(project_id: str):
 
     project = projects_collection.find_one(
-        {"_id": ObjectId(project_id)}
+        {
+            "_id": ObjectId(project_id)
+        }
     )
 
     if not project:
-        return {"message": "Project not found"}
+        return {
+            "message": "Project not found"
+        }
 
-    required_skills = project["required_skills"]
+    required_skills = project[
+        "required_skills"
+    ]
 
     matches = []
 
@@ -141,19 +183,23 @@ def find_matches(project_id: str):
             resume_skills,
             required_skills
         )
+
         talent_score = calculate_talent_score(
-        student
+            student
         )
+
         final_score = calculate_final_score(
             score,
             talent_score
         )
+
         matches.append({
             "student_name": student["name"],
             "match_score": score,
             "talent_score": talent_score,
             "final_score": final_score
         })
+
     matches.sort(
         key=lambda x: x["final_score"],
         reverse=True
@@ -165,7 +211,9 @@ def find_matches(project_id: str):
 def generate_team(project_id: str):
 
     project = projects_collection.find_one(
-        {"_id": ObjectId(project_id)}
+        {
+            "_id": ObjectId(project_id)
+        }
     )
 
     if not project:
@@ -173,7 +221,9 @@ def generate_team(project_id: str):
             "message": "Project not found"
         }
 
-    required_skills = project["required_skills"]
+    required_skills = project[
+        "required_skills"
+    ]
 
     matches = []
 
@@ -204,12 +254,13 @@ def generate_team(project_id: str):
         "team": team
     }
 
-
 @app.get("/students/{student_id}/talent-score")
 def get_talent_score(student_id: str):
 
     student = students_collection.find_one(
-        {"_id": ObjectId(student_id)}
+        {
+            "_id": ObjectId(student_id)
+        }
     )
 
     if not student:
@@ -217,17 +268,22 @@ def get_talent_score(student_id: str):
             "message": "Student not found"
         }
 
-    score = calculate_talent_score(student)
+    score = calculate_talent_score(
+        student
+    )
 
     return {
         "student": student["name"],
         "talent_score": score
     }
+
 @app.get("/students/{student_id}/github-profile")
 def github_profile(student_id: str):
 
     student = students_collection.find_one(
-        {"_id": ObjectId(student_id)}
+        {
+            "_id": ObjectId(student_id)
+        }
     )
 
     if not student:
@@ -249,11 +305,14 @@ def github_profile(student_id: str):
     )
 
     return profile
+
 @app.get("/students/{student_id}/github-projects")
 def github_projects(student_id: str):
 
     student = students_collection.find_one(
-        {"_id": ObjectId(student_id)}
+        {
+            "_id": ObjectId(student_id)
+        }
     )
 
     if not student:
@@ -273,6 +332,7 @@ def github_projects(student_id: str):
         "username": username,
         "repositories": repos
     }
+
 @app.get(
     "/projects/{project_id}/github-relevance/{student_id}"
 )
@@ -282,11 +342,15 @@ def github_relevance(
 ):
 
     project = projects_collection.find_one(
-        {"_id": ObjectId(project_id)}
+        {
+            "_id": ObjectId(project_id)
+        }
     )
 
     student = students_collection.find_one(
-        {"_id": ObjectId(student_id)}
+        {
+            "_id": ObjectId(student_id)
+        }
     )
 
     if not project:
@@ -317,11 +381,14 @@ def github_relevance(
         "project": project["title"],
         "github_relevance_score": score
     }
+
 @app.get("/projects/{project_id}/smart-team")
 def smart_team(project_id: str):
 
     project = projects_collection.find_one(
-        {"_id": ObjectId(project_id)}
+        {
+            "_id": ObjectId(project_id)
+        }
     )
 
     if not project:
@@ -329,19 +396,23 @@ def smart_team(project_id: str):
             "message": "Project not found"
         }
 
-    students = list(
-        students_collection.find()
+    agent = RecruiterAgent()
+
+    result = agent.recruit_team(
+        project["title"],
+        project.get("description", "")
     )
 
-    team = build_team(
-        project,
-        students
-    )
-
-    return {
+    return make_json_safe({ 
         "project": project["title"],
-        "team": team
-    }
+        "team": result["final_team"],
+        "coverage": result["coverage"],
+        "skill_gaps": result["skill_gaps"],
+        "additional_candidates": result[
+            "additional_candidates"
+        ]
+    })
+
 @app.get(
     "/projects/{project_id}/team-success"
 )
@@ -350,7 +421,9 @@ def team_success(
 ):
 
     project = projects_collection.find_one(
-        {"_id": ObjectId(project_id)}
+        {
+            "_id": ObjectId(project_id)
+        }
     )
 
     if not project:
@@ -358,29 +431,32 @@ def team_success(
             "message": "Project not found"
         }
 
-    students = list(
-        students_collection.find()
+    agent = RecruiterAgent()
+
+    recruitment_result = agent.recruit_team(
+        project["title"],
+        project.get("description", "")
     )
 
-    team = build_balanced_team(
-        project,
-        students
-    )
+    team = recruitment_result[
+        "final_team"
+    ]
 
     result = calculate_team_success(
         team
     )
 
-    return {
+    return jsonable_encoder({
         "project": project["title"],
         "team_size": len(team),
+        "success_score": result[
+            "success_score"
+        ],
+        "success_probability": result[
+            "success_probability"
+        ]
+    })
 
-        "success_score":
-        result["success_score"],
-
-        "success_probability":
-        result["success_probability"]
-    }
 @app.get(
     "/students/{student_id}/intelligence-profile"
 )
@@ -395,7 +471,6 @@ def get_intelligence_profile(
     )
 
     if not student:
-
         return {
             "error": "Student not found"
         }
@@ -405,10 +480,8 @@ def get_intelligence_profile(
     )
 
     if not github_username:
-
         return {
-            "error":
-            "GitHub username not found"
+            "error": "GitHub username not found"
         }
 
     profile = build_student_profile(
