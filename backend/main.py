@@ -405,12 +405,15 @@ def smart_team(project_id: str):
 
     return make_json_safe({ 
         "project": project["title"],
-        "team": result["final_team"],
-        "coverage": result["coverage"],
-        "skill_gaps": result["skill_gaps"],
-        "additional_candidates": result[
-            "additional_candidates"
-        ]
+        "team_size": len(team),
+        "success_score": result["success_score"],
+        "success_probability": result["success_probability"],
+        "skill_coverage": result["skill_coverage"],
+        "role_balance": result["role_balance"],
+        "team_compatibility": result["team_compatibility"],
+        "risk_level": result["risk_level"],
+        "risks": result["risks"],
+        "recommendations": result["recommendations"]
     })
 
 @app.get(
@@ -446,16 +449,18 @@ def team_success(
         team
     )
 
-    return jsonable_encoder({
-        "project": project["title"],
-        "team_size": len(team),
-        "success_score": result[
-            "success_score"
-        ],
-        "success_probability": result[
-            "success_probability"
-        ]
-    })
+    return make_json_safe({
+    "project": project["title"],
+    "team_size": len(team),
+    "success_score": result["success_score"],
+    "success_probability": result["success_probability"],
+    "skill_coverage": result["skill_coverage"],
+    "role_balance": result["role_balance"],
+    "team_compatibility": result["team_compatibility"],
+    "risk_level": result["risk_level"],
+    "risks": result["risks"],
+    "recommendations": result["recommendations"]
+})
 
 @app.get(
     "/students/{student_id}/intelligence-profile"
