@@ -402,19 +402,16 @@ def smart_team(project_id: str):
         project["title"],
         project.get("description", "")
     )
+    team = result["final_team"]
 
-    return make_json_safe({ 
-        "project": project["title"],
-        "team_size": len(team),
-        "success_score": result["success_score"],
-        "success_probability": result["success_probability"],
-        "skill_coverage": result["skill_coverage"],
-        "role_balance": result["role_balance"],
-        "team_compatibility": result["team_compatibility"],
-        "risk_level": result["risk_level"],
-        "risks": result["risks"],
-        "recommendations": result["recommendations"]
-    })
+    return make_json_safe({
+    "project": project["title"],
+    "team_size": len(team),
+    "team": team,
+    "coverage": result["coverage"],
+    "skill_gaps": result["skill_gaps"],
+    "additional_candidates": result["additional_candidates"]
+})
 
 @app.get(
     "/projects/{project_id}/team-success"
