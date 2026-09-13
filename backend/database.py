@@ -6,3 +6,4 @@ db = client["collabiq_db"]
 
 students_collection = db["students"]
 projects_collection = db["projects"]
+invitations_collection = db["invitations"]

@@ -24,6 +24,7 @@ from services.student_intelligence import (
 from services.team_success import (
     calculate_team_success
 )
+from services.invitation_service import create_invitation
 import shutil
 def make_json_safe(value):
     if isinstance(value, ObjectId):
@@ -403,6 +404,8 @@ def smart_team(project_id: str):
         project.get("description", "")
     )
     team = result["final_team"]
+    print("FINAL TEAM:", team)
+    invitations = []
 
     return make_json_safe({
     "project": project["title"],
@@ -491,3 +494,68 @@ def get_intelligence_profile(
     )
 
     return profile
+@app.post("/projects/{project_id}/invite-candidates")
+def invite_candidates(project_id: str):
+    project = projects_collection.find_one({"_id": ObjectId(project_id)})
+
+    if not project:
+        return {"message": "Project not found"}
+
+    agent = RecruiterAgent()
+
+    result = agent.recruit_team(
+        project["title"],
+        project.get("description", "")
+    )
+
+    team = result.get("final_team", [])
+
+    invitations = []
+
+    invitation_base_url = "http://127.0.0.1:8000/invitations/respond"
+
+    for member in team:
+        profile = member.get("profile", member)
+
+        role = (
+            member.get("assigned_role")
+            or member.get("role")
+            or profile.get("recommended_role")
+            or profile.get("role")
+            or "Project Team Member"
+        )
+
+        try:
+            invitation = create_invitation(
+                project_id=str(project_id),
+                project_title=project["title"],
+                candidate=member,
+                role=role,
+                invitation_link=invitation_base_url
+            )
+
+            invitations.append({
+                "candidate_name": invitation["candidate_name"],
+                "candidate_email": invitation["candidate_email"],
+                "role": invitation["role"],
+                "status": invitation["status"],
+                "invitation_id": invitation["_id"]
+            })
+
+        except Exception as e:
+            invitations.append({
+                "candidate_name": profile.get("student") or profile.get("name"),
+                "status": "failed",
+                "error": str(e)
+            })
+
+    return make_json_safe({
+        "project": project["title"],
+        "team_size": len(team),
+        "invitations_sent": len([
+            item for item in invitations
+            if item["status"] == "invited"
+        ]),
+        "invitations": invitations
+    })
+
