@@ -403,10 +403,11 @@ def smart_team(project_id: str):
         project["title"],
         project.get("description", "")
     )
-    team = result["final_team"]
-    print("FINAL TEAM:", team)
+    team = result.get("final_team", [])
+    print("FINAL TEAM TYPE:", type(team))
+    print("FIRST TEAM MEMBER:", team[0] if team else None)
     invitations = []
-
+   
     return make_json_safe({
     "project": project["title"],
     "team_size": len(team),
