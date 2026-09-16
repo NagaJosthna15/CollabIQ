@@ -403,19 +403,18 @@ def smart_team(project_id: str):
         project["title"],
         project.get("description", "")
     )
-    team = result.get("final_team", [])
-    print("FINAL TEAM TYPE:", type(team))
-    print("FIRST TEAM MEMBER:", team[0] if team else None)
-    invitations = []
-   
+
+    team = result["final_team"]
+
     return make_json_safe({
-    "project": project["title"],
-    "team_size": len(team),
-    "team": team,
-    "coverage": result["coverage"],
-    "skill_gaps": result["skill_gaps"],
-    "additional_candidates": result["additional_candidates"]
-})
+        "project": project["title"],
+        "team_size": len(team),
+        "team": team,
+        "coverage": result["coverage"],
+        "skill_gaps": result["skill_gaps"],
+        "additional_candidates": result["additional_candidates"]
+    })
+
 
 @app.get(
     "/projects/{project_id}/team-success"
@@ -451,17 +450,18 @@ def team_success(
     )
 
     return make_json_safe({
-    "project": project["title"],
-    "team_size": len(team),
-    "success_score": result["success_score"],
-    "success_probability": result["success_probability"],
-    "skill_coverage": result["skill_coverage"],
-    "role_balance": result["role_balance"],
-    "team_compatibility": result["team_compatibility"],
-    "risk_level": result["risk_level"],
-    "risks": result["risks"],
-    "recommendations": result["recommendations"]
-})
+        "project": project["title"],
+        "team_size": len(team),
+        "success_score": result["success_score"],
+        "success_probability": result["success_probability"],
+        "skill_coverage": result["skill_coverage"],
+        "role_balance": result["role_balance"],
+        "team_compatibility": result["team_compatibility"],
+        "risk_level": result["risk_level"],
+        "risks": result["risks"],
+        "recommendations": result["recommendations"]
+    })
+
 
 @app.get(
     "/students/{student_id}/intelligence-profile"
@@ -495,12 +495,21 @@ def get_intelligence_profile(
     )
 
     return profile
+
+
 @app.post("/projects/{project_id}/invite-candidates")
 def invite_candidates(project_id: str):
-    project = projects_collection.find_one({"_id": ObjectId(project_id)})
+
+    project = projects_collection.find_one(
+        {
+            "_id": ObjectId(project_id)
+        }
+    )
 
     if not project:
-        return {"message": "Project not found"}
+        return {
+            "message": "Project not found"
+        }
 
     agent = RecruiterAgent()
 
@@ -509,28 +518,39 @@ def invite_candidates(project_id: str):
         project.get("description", "")
     )
 
-    team = result.get("final_team", [])
+    team = result.get(
+        "final_team",
+        []
+    )
 
     invitations = []
 
     invitation_base_url = "http://127.0.0.1:8000/invitations/respond"
 
     for member in team:
-        profile = member.get("profile", member)
+
+        candidate = member.get(
+            "candidate",
+            {}
+        )
+
+        profile = candidate.get(
+            "profile",
+            {}
+        )
 
         role = (
-            member.get("assigned_role")
-            or member.get("role")
+            member.get("role")
             or profile.get("recommended_role")
-            or profile.get("role")
             or "Project Team Member"
         )
 
         try:
+
             invitation = create_invitation(
                 project_id=str(project_id),
                 project_title=project["title"],
-                candidate=member,
+                candidate=candidate,
                 role=role,
                 invitation_link=invitation_base_url
             )
@@ -544,8 +564,11 @@ def invite_candidates(project_id: str):
             })
 
         except Exception as e:
+
             invitations.append({
-                "candidate_name": profile.get("student") or profile.get("name"),
+                "candidate_name": profile.get("student"),
+                "candidate_email": profile.get("email"),
+                "role": role,
                 "status": "failed",
                 "error": str(e)
             })
@@ -554,9 +577,9 @@ def invite_candidates(project_id: str):
         "project": project["title"],
         "team_size": len(team),
         "invitations_sent": len([
-            item for item in invitations
+            item
+            for item in invitations
             if item["status"] == "invited"
         ]),
         "invitations": invitations
     })
-

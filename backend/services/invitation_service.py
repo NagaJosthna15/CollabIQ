@@ -12,18 +12,10 @@ def create_invitation(
     role,
     invitation_link
 ):
-    profile = candidate.get("profile", candidate)
+    profile = candidate.get("profile", {})
 
-    candidate_id = (
-        profile.get("student_id")
-        or profile.get("_id")
-    )
-
-    candidate_name = (
-        profile.get("student")
-        or profile.get("name")
-    )
-
+    candidate_id = profile.get("student_id")
+    candidate_name = profile.get("student")
     candidate_email = profile.get("email")
 
     if not candidate_id:
