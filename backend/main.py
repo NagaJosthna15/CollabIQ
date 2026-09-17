@@ -566,7 +566,7 @@ def invite_candidates(project_id: str):
         except Exception as e:
 
             invitations.append({
-                "candidate_name": profile.get("student"),
+                "candidate_name": profile.get("student") or profile.get("name"),
                 "candidate_email": profile.get("email"),
                 "role": role,
                 "status": "failed",
