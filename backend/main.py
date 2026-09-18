@@ -24,7 +24,7 @@ from services.student_intelligence import (
 from services.team_success import (
     calculate_team_success
 )
-from services.invitation_service import create_invitation
+from services.invitation_service import create_invitation, accept_invitation, reject_invitation
 import shutil
 def make_json_safe(value):
     if isinstance(value, ObjectId):
@@ -583,3 +583,15 @@ def invite_candidates(project_id: str):
         ]),
         "invitations": invitations
     })
+@app.post("/invitations/{token}/accept")
+def accept_invitation_api(token: str):
+
+    result = accept_invitation(token)
+
+    return make_json_safe(result)
+@app.post("/invitations/{token}/reject")
+def reject_invitation_api(token: str):
+
+    result = reject_invitation(token)
+
+    return make_json_safe(result)
