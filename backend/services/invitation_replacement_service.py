@@ -1,6 +1,111 @@
 from database import students_collection, invitations_collection
 
 
+ROLE_SKILLS = {
+    "backend engineer": {
+        "java",
+        "spring boot",
+        "sql",
+        "nodejs",
+        "node.js",
+        "express",
+        "mongodb",
+        "postgresql",
+        "python",
+        "fastapi",
+        "django",
+        "rest api"
+    },
+    "frontend engineer": {
+        "react",
+        "javascript",
+        "typescript",
+        "html",
+        "css",
+        "next.js",
+        "bootstrap"
+    },
+    "full stack developer": {
+        "react",
+        "javascript",
+        "typescript",
+        "nodejs",
+        "node.js",
+        "express",
+        "mongodb",
+        "sql",
+        "html",
+        "css"
+    },
+    "ai/ml engineer": {
+        "python",
+        "machine learning",
+        "tensorflow",
+        "pytorch",
+        "nlp",
+        "deep learning",
+        "scikit-learn",
+        "ai"
+    },
+    "machine learning engineer": {
+        "python",
+        "machine learning",
+        "tensorflow",
+        "pytorch",
+        "nlp",
+        "deep learning",
+        "scikit-learn",
+        "ai"
+    },
+    "devops engineer": {
+        "docker",
+        "kubernetes",
+        "aws",
+        "azure",
+        "gcp",
+        "ci/cd",
+        "github actions"
+    },
+    "devops / cloud engineer": {
+        "docker",
+        "kubernetes",
+        "aws",
+        "azure",
+        "gcp",
+        "ci/cd",
+        "github actions"
+    },
+    "cloud engineer": {
+        "aws",
+        "azure",
+        "gcp",
+        "docker",
+        "kubernetes"
+    },
+    "data analyst": {
+        "python",
+        "sql",
+        "power bi",
+        "excel",
+        "tableau",
+        "data analysis"
+    }
+}
+
+
+def normalize(value):
+    if not value:
+        return ""
+
+    return (
+        str(value)
+        .strip()
+        .lower()
+        .replace("node.js", "nodejs")
+        .replace("next.js", "nextjs")
+    )
+
+
 def find_replacement_candidate(
     project_id,
     role,
@@ -11,82 +116,104 @@ def find_replacement_candidate(
         for candidate_id in excluded_candidate_ids
     }
 
-    invited_candidates = invitations_collection.find({
+    project_invitations = invitations_collection.find({
         "project_id": str(project_id)
     })
 
-    unavailable_candidate_ids = set(excluded_candidate_ids)
+    unavailable_candidate_ids = set(
+        excluded_candidate_ids
+    )
 
-    for invitation in invited_candidates:
-        status = invitation.get("status")
+    for invitation in project_invitations:
+        candidate_id = invitation.get("candidate_id")
 
-        if status in {"invited", "accepted", "rejected"}:
-            candidate_id = invitation.get("candidate_id")
+        if candidate_id:
+            unavailable_candidate_ids.add(
+                str(candidate_id)
+            )
 
-            if candidate_id:
-                unavailable_candidate_ids.add(
-                    str(candidate_id)
-                )
+    normalized_role = normalize(role)
 
-    students = students_collection.find({})
+    role_skills = ROLE_SKILLS.get(
+        normalized_role,
+        set()
+    )
+
+    if not role_skills:
+        role_skills = {
+            word
+            for word in normalized_role.replace(
+                "/",
+                " "
+            ).replace(
+                "-",
+                " "
+            ).split()
+            if len(word) > 2
+        }
 
     candidates = []
 
-    for student in students:
-
-        candidate_id = str(student.get("_id", ""))
+    for student in students_collection.find({}):
+        candidate_id = str(
+            student.get("_id", "")
+        )
 
         if candidate_id in unavailable_candidate_ids:
             continue
 
-        student_name = (
+        candidate_name = (
             student.get("student")
             or student.get("name")
         )
 
-        email = student.get("email")
+        candidate_email = student.get("email")
 
-        if not student_name or not email:
+        if not candidate_name or not candidate_email:
             continue
 
         skills = student.get("skills", [])
-        resume_skills = student.get("resume_skills", [])
+        resume_skills = student.get(
+            "resume_skills",
+            []
+        )
 
         all_skills = {
-            str(skill).strip().lower()
-            for skill in skills + resume_skills
+            normalize(skill)
+            for skill in (
+                skills + resume_skills
+            )
             if skill
         }
 
-        role_text = str(
-            student.get("recommended_role", "")
-        ).strip().lower()
-
-        role_words = {
-            word.strip()
-            for word in role.lower().replace("/", " ").replace("-", " ").split()
-            if len(word.strip()) > 2
-        }
-
-        skill_score = 0
-
-        for skill in all_skills:
-            for word in role_words:
-                if word in skill or skill in word:
-                    skill_score += 1
-
-        role_score = sum(
-            1
-            for word in role_words
-            if word in role_text
+        recommended_role = normalize(
+            student.get(
+                "recommended_role",
+                ""
+            )
         )
 
-        total_score = skill_score + role_score
+        skill_matches = (
+            all_skills & role_skills
+        )
 
-        if total_score > 0:
+        role_match = (
+            normalized_role == recommended_role
+            or normalized_role in recommended_role
+            or recommended_role in normalized_role
+        )
+
+        score = (
+            len(skill_matches) * 10
+        )
+
+        if role_match:
+            score += 20
+
+        if score > 0:
             candidates.append({
                 "student": student,
-                "score": total_score
+                "score": score
             })
 
     if not candidates:
