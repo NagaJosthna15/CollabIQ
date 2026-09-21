@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from bson import ObjectId
 from fastapi.encoders import jsonable_encoder
 from models import Student, Project
-from database import students_collection, projects_collection
+from database import students_collection, projects_collection, projects_collection, invitations_collection
 from fastapi import UploadFile, File
 from services.skill_extractor import extract_skills
 from bson import ObjectId
@@ -544,6 +544,25 @@ def invite_candidates(project_id: str):
             or profile.get("recommended_role")
             or "Project Team Member"
         )
+        candidate_id=(
+             profile.get("student_id")
+            or profile.get("_id")
+        or profile.get("id")
+        )
+        existing_invitation = invitations_collection.find_one({
+            "project_id": str(project_id),
+            "candidate_id": str(candidate_id)
+        })
+        if existing_invitation:
+            invitations.append({
+                 "candidate_name": profile.get("student") or profile.get("name"),
+                 "candidate_email": profile.get("email"),
+                 "role": role,
+                 "status": "skipped",
+                 "reason": f"Already {existing_invitation.get('status')} for this project",
+                 "invitation_id": str(existing_invitation["_id"])
+          })
+            continue
 
         try:
 
