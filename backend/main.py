@@ -25,6 +25,10 @@ from services.team_success import (
     calculate_team_success
 )
 from services.invitation_service import create_invitation, accept_invitation, reject_invitation
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from models import StudentRegister, StudentLogin
+from services.auth_service import register_student, login_student, get_student_from_token
 import shutil
 def make_json_safe(value):
     if isinstance(value, ObjectId):
@@ -55,12 +59,68 @@ app = FastAPI(
     description="Intelligent Collaboration & Team Optimization Platform",
     version="1.0.0"
 )
+security = HTTPBearer()
 
 @app.get("/")
 def home():
     return {
         "message": "Welcome to CollabIQ 🚀"
     }
+@app.post("/auth/register")
+def register(student: StudentRegister):
+    student_data = student.model_dump()
+
+    result = register_student(student_data)
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=400,
+            detail=result["message"]
+        )
+
+    return result
+@app.post("/auth/login")
+def login(student: StudentLogin):
+    result = login_student(
+        student.email,
+        student.password
+    )
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=401,
+            detail=result["message"]
+        )
+
+    return result
+@app.get("/auth/me")
+def get_current_student(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    try:
+        student = get_student_from_token(
+            credentials.credentials
+        )
+
+        if not student:
+            raise HTTPException(
+                status_code=404,
+                detail="Student not found"
+            )
+
+        student["_id"] = str(student["_id"])
+        student.pop("password_hash", None)
+
+        return student
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )
 
 @app.post("/students")
 def create_student(student: Student):
