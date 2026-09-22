@@ -29,4 +29,12 @@ class StudentRegister(BaseModel):
 
 class StudentLogin(BaseModel):
     email: str
-    password: str      
+    password: str 
+class StudentProfileUpdate(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    cgpa: float | None = None
+    skills: List[str] | None = None
+    interests: List[str] | None = None
+    projects_completed: int | None = None
+    github_username: str | None = None         

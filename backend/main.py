@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from bson import ObjectId
 from fastapi.encoders import jsonable_encoder
-from models import Student, Project
+from models import Student, Project, StudentRegister, StudentLogin, StudentProfileUpdate
 from database import students_collection, projects_collection, projects_collection, invitations_collection
 from fastapi import UploadFile, File
 from services.skill_extractor import extract_skills
@@ -28,7 +28,14 @@ from services.invitation_service import create_invitation, accept_invitation, re
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from models import StudentRegister, StudentLogin
-from services.auth_service import register_student, login_student, get_student_from_token
+from services.auth_service import register_student, login_student, get_student_from_token,update_student_profile
+from services.student_project_service import (
+    get_student_invitations,
+    get_student_accepted_projects
+)
+from services.project_invitation_service import ( get_project_invitations,get_project_candidate_status
+)
+from services.invitation_expiry_service import expire_pending_invitations
 import shutil
 def make_json_safe(value):
     if isinstance(value, ObjectId):
@@ -121,6 +128,148 @@ def get_current_student(
             status_code=401,
             detail="Invalid or expired token"
         )
+@app.get("/students/me")
+def get_my_profile(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    try:
+        student = get_student_from_token(
+            credentials.credentials
+        )
+
+        if not student:
+            raise HTTPException(
+                status_code=404,
+                detail="Student not found"
+            )
+
+        student["_id"] = str(student["_id"])
+        student.pop("password_hash", None)
+
+        return student
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )   
+@app.put("/students/me")
+def update_my_profile(
+    profile: StudentProfileUpdate,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    try:
+        student = get_student_from_token(
+            credentials.credentials
+        )
+
+        if not student:
+            raise HTTPException(
+                status_code=404,
+                detail="Student not found"
+            )
+
+        result = update_student_profile(
+            str(student["_id"]),
+            profile.model_dump(exclude_none=True)
+        )
+
+        if not result["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=result["message"]
+            )
+
+        result["student"]["_id"] = str(
+            result["student"]["_id"]
+        )
+
+        result["student"].pop(
+            "password_hash",
+            None
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )   
+@app.get("/students/me/invitations")
+def get_my_invitations(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    try:
+        student = get_student_from_token(
+            credentials.credentials
+        )
+
+        if not student:
+            raise HTTPException(
+                status_code=404,
+                detail="Student not found"
+            )
+
+        invitations = get_student_invitations(
+            str(student["_id"])
+        )
+
+        return make_json_safe({
+            "student_name": student.get("name"),
+            "total_invitations": len(invitations),
+            "invitations": invitations
+        })
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )
+
+
+@app.get("/students/me/accepted-projects")
+def get_my_accepted_projects(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    try:
+        student = get_student_from_token(
+            credentials.credentials
+        )
+
+        if not student:
+            raise HTTPException(
+                status_code=404,
+                detail="Student not found"
+            )
+
+        projects = get_student_accepted_projects(
+            str(student["_id"])
+        )
+
+        return make_json_safe({
+            "student_name": student.get("name"),
+            "total_projects": len(projects),
+            "projects": projects
+        })
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )      
 
 @app.post("/students")
 def create_student(student: Student):
@@ -661,6 +810,89 @@ def invite_candidates(project_id: str):
             if item["status"] == "invited"
         ]),
         "invitations": invitations
+    })
+@app.get("/projects/{project_id}/invitations")
+def get_project_invitation_status(project_id: str):
+
+    project = projects_collection.find_one(
+        {
+            "_id": ObjectId(project_id)
+        }
+    )
+
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found"
+        )
+
+    result = get_project_invitations(
+        project_id
+    )
+
+    return make_json_safe({
+        "project": project["title"],
+        "total_invitations": result["total_invitations"],
+        "invited": result["invited"],
+        "accepted": result["accepted"],
+        "rejected": result["rejected"],
+        "expired": result["expired"],
+        "invitations": result["invitations"]
+    })
+@app.get("/projects/{project_id}/candidate-status")
+def get_project_candidate_status_api(
+    project_id: str
+):
+
+    project = projects_collection.find_one(
+        {
+            "_id": ObjectId(project_id)
+        }
+    )
+
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found"
+        )
+
+    result = get_project_candidate_status(
+        project_id
+    )
+
+    return make_json_safe({
+        "project": project["title"],
+        "total_candidates": result["total_candidates"],
+        "invited": result["invited"],
+        "accepted": result["accepted"],
+        "rejected": result["rejected"],
+        "expired": result["expired"],
+        "candidates": result["candidates"]
+    })
+@app.post("/projects/{project_id}/expire-invitations")
+def expire_project_invitations(project_id: str):
+
+    project = projects_collection.find_one(
+        {
+            "_id": ObjectId(project_id)
+        }
+    )
+
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found"
+        )
+
+    result = expire_pending_invitations(
+        project_id=project_id
+    )
+
+    return make_json_safe({
+        "project": project["title"],
+        "expired_count": result["expired_count"],
+        "expiry_hours": result["expiry_hours"],
+        "checked_at": result["checked_at"]
     })
 @app.post("/invitations/{token}/accept")
 def accept_invitation_api(token: str):

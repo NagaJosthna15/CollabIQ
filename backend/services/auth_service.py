@@ -140,3 +140,58 @@ def get_student_from_token(token):
     })
 
     return student
+def update_student_profile(student_id, update_data):
+    allowed_fields = {
+        "name",
+        "email",
+        "cgpa",
+        "skills",
+        "interests",
+        "projects_completed",
+        "github_username"
+    }
+
+    filtered_data = {
+        key: value
+        for key, value in update_data.items()
+        if key in allowed_fields
+    }
+
+    if "email" in filtered_data:
+        filtered_data["email"] = filtered_data["email"].strip().lower()
+
+        existing_student = students_collection.find_one({
+            "email": filtered_data["email"],
+            "_id": {"$ne": ObjectId(student_id)}
+        })
+
+        if existing_student:
+            return {
+                "success": False,
+                "message": "Email is already registered"
+            }
+
+    if not filtered_data:
+        return {
+            "success": False,
+            "message": "No valid profile fields provided"
+        }
+
+    students_collection.update_one(
+        {
+            "_id": ObjectId(student_id)
+        },
+        {
+            "$set": filtered_data
+        }
+    )
+
+    student = students_collection.find_one({
+        "_id": ObjectId(student_id)
+    })
+
+    return {
+        "success": True,
+        "message": "Student profile updated successfully",
+        "student": student
+    }    
