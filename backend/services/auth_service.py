@@ -32,13 +32,14 @@ def verify_password(password, password_hash):
     )
 
 
-def create_access_token(student_id):
+def create_access_token(student_id, role):
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=JWT_EXPIRE_MINUTES
     )
 
     payload = {
         "student_id": str(student_id),
+        "role": role,
         "exp": expire
     }
 
@@ -63,6 +64,7 @@ def register_student(student_data):
         }
 
     student_data["email"] = email
+    student_data["role"] = "student"
     student_data["password_hash"] = hash_password(
         student_data.pop("password")
     )
@@ -75,7 +77,40 @@ def register_student(student_data):
     return {
         "success": True,
         "message": "Student registered successfully",
-        "student_id": str(result.inserted_id)
+        "student_id": str(result.inserted_id),
+        "role": "student"
+    }
+
+
+def register_recruiter(recruiter_data):
+    email = recruiter_data["email"].strip().lower()
+
+    existing_student = students_collection.find_one({
+        "email": email
+    })
+
+    if existing_student:
+        return {
+            "success": False,
+            "message": "Account with this email already exists"
+        }
+
+    recruiter_data["email"] = email
+    recruiter_data["role"] = "recruiter"
+    recruiter_data["password_hash"] = hash_password(
+        recruiter_data.pop("password")
+    )
+    recruiter_data["created_at"] = datetime.now(timezone.utc)
+
+    result = students_collection.insert_one(
+        recruiter_data
+    )
+
+    return {
+        "success": True,
+        "message": "Recruiter registered successfully",
+        "recruiter_id": str(result.inserted_id),
+        "role": "recruiter"
     }
 
 
@@ -97,7 +132,7 @@ def login_student(email, password):
     if not password_hash:
         return {
             "success": False,
-            "message": "This student account is not configured for login"
+            "message": "This account is not configured for login"
         }
 
     if not verify_password(
@@ -109,8 +144,11 @@ def login_student(email, password):
             "message": "Invalid email or password"
         }
 
+    role = student.get("role", "student")
+
     token = create_access_token(
-        student["_id"]
+        student["_id"],
+        role
     )
 
     return {
@@ -119,7 +157,8 @@ def login_student(email, password):
         "access_token": token,
         "token_type": "bearer",
         "student_id": str(student["_id"]),
-        "student_name": student.get("name")
+        "student_name": student.get("name"),
+        "role": role
     }
 
 
@@ -140,6 +179,8 @@ def get_student_from_token(token):
     })
 
     return student
+
+
 def update_student_profile(student_id, update_data):
     allowed_fields = {
         "name",
@@ -194,4 +235,4 @@ def update_student_profile(student_id, update_data):
         "success": True,
         "message": "Student profile updated successfully",
         "student": student
-    }    
+    }

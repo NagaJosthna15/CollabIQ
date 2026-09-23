@@ -14,8 +14,7 @@ class Project(BaseModel):
     title: str
     description: str
     required_skills: list[str]
-    team_size: int
-    created_by: str  
+    team_size: int 
 class StudentRegister(BaseModel):
     name: str
     email: str
@@ -25,6 +24,10 @@ class StudentRegister(BaseModel):
     interests: List[str]
     projects_completed: int
     github_username: str
+class RecruiterRegister(BaseModel):
+    name: str
+    email: str
+    password: str    
 
 
 class StudentLogin(BaseModel):
