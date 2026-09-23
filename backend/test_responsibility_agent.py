@@ -1,6 +1,7 @@
 from services.agents.responsibility_agent import (
     ResponsibilityAgent
 )
+from services.ai.gemini_service import GeminiService
 
 agent = ResponsibilityAgent()
 

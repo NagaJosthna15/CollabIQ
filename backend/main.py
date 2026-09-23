@@ -1,4 +1,6 @@
+
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from bson import ObjectId
 
@@ -91,6 +93,17 @@ app = FastAPI(
     title="CollabIQ API",
     description="Intelligent Collaboration & Team Optimization Platform",
     version="1.0.0"
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:5173"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
 
@@ -406,31 +419,63 @@ async def upload_resume(
             detail="You can only upload your own resume"
         )
 
-    file_path = f"uploads/{file.filename}"
-
-    with open(
-        file_path,
-        "wb"
-    ) as buffer:
-        shutil.copyfileobj(
-            file.file,
-            buffer
+    try:
+        ObjectId(student_id)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid student ID"
         )
 
-    skills = extract_skills(
-        file_path
-    )
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Resume file is required"
+        )
 
-    result = students_collection.update_one(
-        {
-            "_id": ObjectId(student_id)
-        },
-        {
-            "$set": {
-                "resume_skills": skills
+    file_path = f"uploads/{file.filename}"
+
+    try:
+        with open(
+            file_path,
+            "wb"
+        ) as buffer:
+            shutil.copyfileobj(
+                file.file,
+                buffer
+            )
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save resume file"
+        )
+
+    try:
+        skills = extract_skills(
+            file_path
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to extract skills from resume"
+        )
+
+    try:
+        result = students_collection.update_one(
+            {
+                "_id": ObjectId(student_id)
+            },
+            {
+                "$set": {
+                    "resume_skills": skills
+                }
             }
-        }
-    )
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update student profile"
+        )
 
     return {
         "filename": file.filename,
@@ -738,7 +783,6 @@ def github_relevance(
         "github_relevance_score": score
     }
 
-
 @app.get("/projects/{project_id}/smart-team")
 def smart_team(
     project_id: str,
@@ -753,13 +797,21 @@ def smart_team(
 
     agent = RecruiterAgent()
 
-    result = agent.recruit_team(
-        project["title"],
-        project.get(
-            "description",
-            ""
+    try:
+        result = agent.recruit_team(
+            project["title"],
+            project.get(
+                "description",
+                ""
+            )
         )
-    )
+    except RuntimeError as e:
+        if "Gemini service is temporarily unavailable" in str(e):
+            raise HTTPException(
+                status_code=503,
+                detail="AI service is temporarily unavailable. Please try again later."
+            )
+        raise
 
     team = result["final_team"]
 
