@@ -372,16 +372,20 @@ def create_student(
 ):
     student_data = student.model_dump()
 
-    result = students_collection.insert_one(
-        student_data
-    )
+    try:
+        result = students_collection.insert_one(
+            student_data
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     return {
         "message": "Student added successfully",
         "id": str(result.inserted_id)
     }
-
-
 @app.get("/students")
 def get_students(
     recruiter=Depends(
@@ -390,17 +394,23 @@ def get_students(
 ):
     students = []
 
-    for student in students_collection.find():
-        student["_id"] = str(
-            student["_id"]
-        )
+    try:
+        for student in students_collection.find():
+            student["_id"] = str(
+                student["_id"]
+            )
 
-        student.pop(
-            "password_hash",
-            None
-        )
+            student.pop(
+                "password_hash",
+                None
+            )
 
-        students.append(student)
+            students.append(student)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     return students
 
@@ -497,31 +507,39 @@ def create_project(
         recruiter["_id"]
     )
 
-    result = projects_collection.insert_one(
-        project_data
-    )
+    try:
+        result = projects_collection.insert_one(
+            project_data
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     return {
         "message": "Project created successfully",
-        "project_id": str(
-            result.inserted_id
-        )
+        "project_id": str(result.inserted_id)
     }
-
 
 @app.get("/projects")
 def get_projects():
     projects = []
 
-    for project in projects_collection.find():
-        project["_id"] = str(
-            project["_id"]
+    try:
+        for project in projects_collection.find():
+            project["_id"] = str(
+                project["_id"]
+            )
+
+            projects.append(project)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
         )
 
-        projects.append(project)
-
     return projects
-
 
 @app.get("/projects/{project_id}/matches")
 def find_matches(
@@ -530,57 +548,32 @@ def find_matches(
         require_role("recruiter")
     )
 ):
-    project = projects_collection.find_one(
-        {
-            "_id": ObjectId(project_id)
-        }
-    )
+    try:
+        project_object_id = ObjectId(
+            project_id
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid project ID"
+        )
+
+    try:
+        project = projects_collection.find_one(
+            {
+                "_id": project_object_id
+            }
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     if not project:
         return {
             "message": "Project not found"
         }
-
-    required_skills = project[
-        "required_skills"
-    ]
-
-    matches = []
-
-    for student in students_collection.find():
-        resume_skills = student.get(
-            "resume_skills",
-            []
-        )
-
-        score = calculate_match_score(
-            resume_skills,
-            required_skills
-        )
-
-        talent_score = calculate_talent_score(
-            student
-        )
-
-        final_score = calculate_final_score(
-            score,
-            talent_score
-        )
-
-        matches.append({
-            "student_name": student["name"],
-            "match_score": score,
-            "talent_score": talent_score,
-            "final_score": final_score
-        })
-
-    matches.sort(
-        key=lambda x: x["final_score"],
-        reverse=True
-    )
-
-    return matches
-
 
 @app.get("/projects/{project_id}/team")
 def generate_team(
@@ -606,10 +599,20 @@ def generate_team(
 
     matches = []
 
-    for student in students_collection.find():
+    try:
+        students = list(
+            students_collection.find()
+       )
+    except Exception:
+        raise HTTPException(
+             status_code=503,
+             detail="Database service is temporarily unavailable"
+        )
+
+    for student in students:
         resume_skills = student.get(
             "resume_skills",
-            []
+             []
         )
 
         score = calculate_match_score(
@@ -640,11 +643,26 @@ def get_talent_score(
         require_role("recruiter")
     )
 ):
-    student = students_collection.find_one(
-        {
-            "_id": ObjectId(student_id)
-        }
-    )
+    try:
+        student_object_id = ObjectId(
+             student_id
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid student ID"
+       )
+    try:
+        student = students_collection.find_one(
+            {
+                 "_id": student_object_id
+            }
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     if not student:
         return {
@@ -668,11 +686,27 @@ def github_profile(
         require_role("recruiter")
     )
 ):
-    student = students_collection.find_one(
-        {
-            "_id": ObjectId(student_id)
-        }
-    )
+    try:
+        student_object_id = ObjectId(
+             student_id
+        )
+    except Exception:
+        raise HTTPException(
+             status_code=400,
+            detail="Invalid student ID"
+       )
+
+    try:
+        student = students_collection.find_one(
+            {
+                 "_id": student_object_id
+            }
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+       )
 
     if not student:
         return {
@@ -702,11 +736,28 @@ def github_projects(
         require_role("recruiter")
     )
 ):
-    student = students_collection.find_one(
-        {
-            "_id": ObjectId(student_id)
-        }
-    )
+    try:
+        student_object_id = ObjectId(
+             student_id
+        )
+    except Exception:
+        raise HTTPException(
+             status_code=400,
+            detail="Invalid student ID"
+       )
+    try: 
+        student = students_collection.find_one(
+             {
+                   "_id": student_object_id
+            }
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+       )
+    
+    
 
     if not student:
         return {
@@ -742,17 +793,43 @@ def github_relevance(
         require_role("recruiter")
     )
 ):
-    project = projects_collection.find_one(
-        {
-            "_id": ObjectId(project_id)
-        }
-    )
+    try:
+        project_object_id = ObjectId(
+            project_id
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid project ID"
+        )
 
-    student = students_collection.find_one(
-        {
-            "_id": ObjectId(student_id)
-        }
-    )
+    try:
+        student_object_id = ObjectId(
+            student_id
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid student ID"
+        )
+
+    try:
+        project = projects_collection.find_one(
+            {
+                "_id": project_object_id
+            }
+        )
+
+        student = students_collection.find_one(
+            {
+                "_id": student_object_id
+            }
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     if not project:
         return {
@@ -768,6 +845,11 @@ def github_relevance(
         "github_username"
     )
 
+    if not username:
+        return {
+            "message": "GitHub username not found"
+        }
+
     repositories = get_github_repositories(
         username
     )
@@ -782,7 +864,6 @@ def github_relevance(
         "project": project["title"],
         "github_relevance_score": score
     }
-
 @app.get("/projects/{project_id}/smart-team")
 def smart_team(
     project_id: str,
@@ -826,7 +907,6 @@ def smart_team(
         ]
     })
 
-
 @app.get(
     "/projects/{project_id}/team-success"
 )
@@ -836,11 +916,27 @@ def team_success(
         require_role("recruiter")
     )
 ):
-    project = projects_collection.find_one(
-        {
-            "_id": ObjectId(project_id)
-        }
-    )
+    try:
+        project_object_id = ObjectId(
+            project_id
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid project ID"
+        )
+
+    try:
+        project = projects_collection.find_one(
+            {
+                "_id": project_object_id
+            }
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     if not project:
         return {
@@ -902,11 +998,27 @@ def get_intelligence_profile(
         require_role("recruiter")
     )
 ):
-    student = students_collection.find_one(
-        {
-            "_id": ObjectId(student_id)
-        }
-    )
+    try:
+        student_object_id = ObjectId(
+            student_id
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid student ID"
+        )
+
+    try:
+        student = students_collection.find_one(
+            {
+                "_id": student_object_id
+            }
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     if not student:
         return {
@@ -1069,7 +1181,6 @@ def invite_candidates(
         "invitations": invitations
     })
 
-
 @app.get(
     "/projects/{project_id}/invitations"
 )
@@ -1079,11 +1190,27 @@ def get_project_invitation_status(
         require_role("recruiter")
     )
 ):
-    project = projects_collection.find_one(
-        {
-            "_id": ObjectId(project_id)
-        }
-    )
+    try:
+        project_object_id = ObjectId(
+            project_id
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid project ID"
+        )
+
+    try:
+        project = projects_collection.find_one(
+            {
+                "_id": project_object_id
+            }
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     if not project:
         raise HTTPException(
@@ -1107,7 +1234,6 @@ def get_project_invitation_status(
         "invitations": result["invitations"]
     })
 
-
 @app.get(
     "/projects/{project_id}/candidate-status"
 )
@@ -1117,11 +1243,27 @@ def get_project_candidate_status_api(
         require_role("recruiter")
     )
 ):
-    project = projects_collection.find_one(
-        {
-            "_id": ObjectId(project_id)
-        }
-    )
+    try:
+        project_object_id = ObjectId(
+            project_id
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid project ID"
+        )
+
+    try:
+        project = projects_collection.find_one(
+            {
+                "_id": project_object_id
+            }
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     if not project:
         raise HTTPException(
@@ -1155,11 +1297,27 @@ def expire_project_invitations(
         require_role("recruiter")
     )
 ):
-    project = projects_collection.find_one(
-        {
-            "_id": ObjectId(project_id)
-        }
-    )
+    try:
+        project_object_id = ObjectId(
+            project_id
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid project ID"
+        )
+
+    try:
+        project = projects_collection.find_one(
+            {
+                "_id": project_object_id
+            }
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
 
     if not project:
         raise HTTPException(
@@ -1183,8 +1341,6 @@ def expire_project_invitations(
             "checked_at"
         ]
     })
-
-
 @app.post(
     "/invitations/{token}/accept"
 )

@@ -16,10 +16,10 @@ def create_invitation(
     profile = candidate.get("profile", {})
 
     candidate_id = (
-    profile.get("student_id")
-    or profile.get("_id")
-    or profile.get("id")
-)
+        profile.get("student_id")
+        or profile.get("_id")
+        or profile.get("id")
+    )
     candidate_name = profile.get("student") or profile.get("name")
     candidate_email = profile.get("email")
 
@@ -47,9 +47,14 @@ def create_invitation(
         "responded_at": None
     }
 
-    result = invitations_collection.insert_one(
-        invitation
-    )
+    try:
+        result = invitations_collection.insert_one(
+            invitation
+        )
+    except Exception as e:
+        raise RuntimeError(
+            "Database service is temporarily unavailable"
+        ) from e
 
     link = f"{invitation_link}?token={token}"
 
@@ -64,10 +69,17 @@ def create_invitation(
     invitation["_id"] = str(result.inserted_id)
 
     return invitation
+
+
 def accept_invitation(token):
-    invitation = invitations_collection.find_one({
-        "token": token
-    })
+    try:
+        invitation = invitations_collection.find_one({
+            "token": token
+        })
+    except Exception as e:
+        raise RuntimeError(
+            "Database service is temporarily unavailable"
+        ) from e
 
     if not invitation:
         return {
@@ -83,17 +95,22 @@ def accept_invitation(token):
 
     responded_at = datetime.now(timezone.utc)
 
-    invitations_collection.update_one(
-        {
-            "_id": invitation["_id"]
-        },
-        {
-            "$set": {
-                "status": "accepted",
-                "responded_at": responded_at
+    try:
+        invitations_collection.update_one(
+            {
+                "_id": invitation["_id"]
+            },
+            {
+                "$set": {
+                    "status": "accepted",
+                    "responded_at": responded_at
+                }
             }
-        }
-    )
+        )
+    except Exception as e:
+        raise RuntimeError(
+            "Database service is temporarily unavailable"
+        ) from e
 
     return {
         "success": True,
@@ -107,9 +124,14 @@ def accept_invitation(token):
 
 
 def reject_invitation(token):
-    invitation = invitations_collection.find_one({
-        "token": token
-    })
+    try:
+        invitation = invitations_collection.find_one({
+            "token": token
+        })
+    except Exception as e:
+        raise RuntimeError(
+            "Database service is temporarily unavailable"
+        ) from e
 
     if not invitation:
         return {
@@ -125,31 +147,41 @@ def reject_invitation(token):
 
     responded_at = datetime.now(timezone.utc)
 
-    invitations_collection.update_one(
-        {
-            "_id": invitation["_id"]
-        },
-        {
-            "$set": {
-                "status": "rejected",
-                "responded_at": responded_at
+    try:
+        invitations_collection.update_one(
+            {
+                "_id": invitation["_id"]
+            },
+            {
+                "$set": {
+                    "status": "rejected",
+                    "responded_at": responded_at
+                }
             }
-        }
-    )
+        )
+    except Exception as e:
+        raise RuntimeError(
+            "Database service is temporarily unavailable"
+        ) from e
 
-    existing_invitations = invitations_collection.find({
-        "project_id": invitation["project_id"]
-    })
+    try:
+        existing_invitations = invitations_collection.find({
+            "project_id": invitation["project_id"]
+        })
 
-    excluded_candidate_ids = set()
+        excluded_candidate_ids = set()
 
-    for existing in existing_invitations:
-        candidate_id = existing.get("candidate_id")
+        for existing in existing_invitations:
+            candidate_id = existing.get("candidate_id")
 
-        if candidate_id:
-            excluded_candidate_ids.add(
-                str(candidate_id)
-            )
+            if candidate_id:
+                excluded_candidate_ids.add(
+                    str(candidate_id)
+                )
+    except Exception as e:
+        raise RuntimeError(
+            "Database service is temporarily unavailable"
+        ) from e
 
     replacement = find_replacement_candidate(
         project_id=invitation["project_id"],
@@ -160,7 +192,6 @@ def reject_invitation(token):
     replacement_result = None
 
     if replacement:
-
         replacement_id = str(
             replacement.get("_id")
         )
