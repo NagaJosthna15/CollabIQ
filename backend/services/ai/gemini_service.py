@@ -43,7 +43,8 @@ class GeminiService:
                 last_error = e
 
                 print(
-                    f"Attempt {attempt + 1} failed: {type(e).__name__}"
+                    f"Attempt {attempt + 1} failed: "
+                    f"{type(e).__name__}: {e}"
                 )
 
                 if attempt < 2:

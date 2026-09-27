@@ -523,23 +523,29 @@ def create_project(
     }
 
 @app.get("/projects")
-def get_projects():
-    projects = []
-
+def get_projects(
+    recruiter=Depends(
+        require_role("recruiter")
+    )
+):
     try:
-        for project in projects_collection.find():
+        projects = []
+
+        for project in projects_collection.find({
+            "created_by": str(recruiter["_id"])
+        }):
             project["_id"] = str(
                 project["_id"]
             )
-
             projects.append(project)
+
+        return projects
+
     except Exception:
         raise HTTPException(
             status_code=503,
             detail="Database service is temporarily unavailable"
         )
-
-    return projects
 
 @app.get("/projects/{project_id}/matches")
 def find_matches(
@@ -574,6 +580,60 @@ def find_matches(
         return {
             "message": "Project not found"
         }
+
+    required_skills = project.get(
+        "required_skills",
+        []
+    )
+
+    try:
+        students = list(
+            students_collection.find()
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
+
+    matches = []
+
+    for student in students:
+        resume_skills = student.get(
+            "resume_skills",
+            []
+        )
+
+        score = calculate_match_score(
+            resume_skills,
+            required_skills
+        )
+
+        talent_score = calculate_talent_score(
+            student
+        )
+
+        final_score = calculate_final_score(
+            score,
+            talent_score
+        )
+
+        matches.append({
+            "student_name": student.get(
+                "name",
+                "Unknown"
+            ),
+            "match_score": score,
+            "talent_score": talent_score,
+            "final_score": final_score
+        })
+
+    matches.sort(
+        key=lambda x: x["final_score"],
+        reverse=True
+    )
+
+    return matches
 
 @app.get("/projects/{project_id}/team")
 def generate_team(
