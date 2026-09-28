@@ -66,13 +66,11 @@ export default function ProjectDetailsPage() {
   const [matches, setMatches] = useState<Candidate[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [smartTeam, setSmartTeam] = useState<any>(null);
-  const [teamSuccess, setTeamSuccess] = useState<any>(null);
 
   const [loading, setLoading] = useState(true);
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [loadingInvitations, setLoadingInvitations] = useState(false);
   const [loadingTeam, setLoadingTeam] = useState(false);
-  const [loadingSuccess, setLoadingSuccess] = useState(false);
 
   const [error, setError] = useState("");
 
@@ -242,44 +240,6 @@ export default function ProjectDetailsPage() {
     }
   }
 
-  async function loadTeamSuccess() {
-    const token = getToken();
-
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
-    setLoadingSuccess(true);
-
-    try {
-      const response = await fetch(
-        `${API_URL}/projects/${projectId}/team-success`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (handleAuthError(response.status)) {
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error("Unable to load team analysis");
-      }
-
-      const data = await response.json();
-
-      setTeamSuccess(data);
-    } catch {
-      setTeamSuccess(null);
-    } finally {
-      setLoadingSuccess(false);
-    }
-  }
-
   async function buildSmartTeam() {
     const token = getToken();
 
@@ -356,6 +316,109 @@ export default function ProjectDetailsPage() {
       ? Math.round(candidate.scores.domain * 100)
       : null;
 
+  const getTeamMemberName = (member: any) => {
+  return (
+    member?.name ||
+    member?.student_name ||
+    member?.selected_student ||
+    member?.selectedStudent ||
+    (typeof member?.student === "string"
+      ? member.student
+      : "") ||
+    member?.candidate_name ||
+    member?.profile?.name ||
+    member?.profile?.student ||
+    member?.student_profile?.name ||
+    member?.candidate?.name ||
+    member?.candidate?.student ||
+    member?.candidate?.profile?.name ||
+    member?.candidate?.profile?.student ||
+    "Team Member"
+  );
+};
+
+  const getTeamMemberRole = (member: any) => {
+    if (typeof member === "string") {
+      return "Assigned member";
+    }
+
+    return (
+      member?.role ||
+      member?.assigned_role ||
+      member?.responsibility ||
+      member?.profile?.recommended_role ||
+      "Assigned member"
+    );
+  };
+
+  const getArrayLength = (value: any) =>
+    Array.isArray(value) ? value.length : 0;
+
+  const getTeamAnalysis = () => {
+    if (!smartTeam) {
+      return [];
+    }
+
+    const coverage = smartTeam.coverage || {};
+    const skillGaps = Array.isArray(smartTeam.skill_gaps)
+      ? smartTeam.skill_gaps
+      : [];
+    const additionalCandidates = Array.isArray(
+      smartTeam.additional_candidates
+    )
+      ? smartTeam.additional_candidates
+      : [];
+    const team = Array.isArray(smartTeam.team)
+      ? smartTeam.team
+      : [];
+
+    const missingRoles =
+      coverage.missing_roles ||
+      coverage.missingRoles ||
+      coverage.uncovered_roles ||
+      coverage.uncoveredRoles ||
+      [];
+
+    const coveragePercentage =
+      coverage.coverage_percentage ??
+      coverage.coveragePercentage ??
+      coverage.role_coverage ??
+      coverage.roleCoverage;
+
+    const cards = [
+      {
+        key: "selected_team_members",
+        label: "Selected Team Members",
+        value: team.length || smartTeam.team_size || 0,
+      },
+      {
+        key: "missing_roles",
+        label: "Missing Roles",
+        value: getArrayLength(missingRoles),
+      },
+      {
+        key: "skill_gaps",
+        label: "Skill Gaps",
+        value: skillGaps.length,
+      },
+      {
+        key: "additional_candidates",
+        label: "Additional Candidates",
+        value: additionalCandidates.length,
+      },
+    ];
+
+    if (typeof coveragePercentage === "number") {
+      cards.push({
+        key: "coverage_percentage",
+        label: "Role Coverage",
+        value: coveragePercentage,
+      });
+    }
+
+    return cards;
+  };
+
   return (
     <main className="min-h-screen bg-[#05030d] text-white">
       <div className="pointer-events-none fixed inset-0">
@@ -388,7 +451,6 @@ export default function ProjectDetailsPage() {
               loadProject();
               loadMatches();
               loadInvitations();
-              loadTeamSuccess();
             }}
             className="rounded-xl border border-white/10 p-2.5 text-slate-400 transition hover:bg-white/[0.04] hover:text-white"
           >
@@ -728,21 +790,20 @@ export default function ProjectDetailsPage() {
                       smartTeam.team.map(
                         (member: any, index: number) => (
                           <div
-                            key={index}
+                            key={`${getTeamMemberName(member)}-${index}`}
                             className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3"
                           >
                             <div className="text-sm font-semibold">
-                              {member.name ||
-                                member.student ||
-                                member.candidate_name ||
-                                "Team Member"}
+                              {getTeamMemberName(member)}
                             </div>
 
-                            <div className="mt-1 text-xs text-slate-500">
-                              {member.role ||
-                                member.assigned_role ||
-                                "Assigned member"}
-                            </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {member?.role ||
+                             member?.assigned_role ||
+                            member?.candidate?.profile?.recommended_role ||
+                            member?.candidate?.recommended_role ||
+                           "Assigned member"}
+                        </div>
                           </div>
                         )
                       )}
@@ -770,41 +831,26 @@ export default function ProjectDetailsPage() {
                   />
                 </div>
 
-                {loadingSuccess ? (
-                  <div className="flex items-center justify-center py-12 text-sm text-slate-500">
-                    <Loader2
-                      size={18}
-                      className="mr-2 animate-spin"
-                    />
-                    Loading analysis...
-                  </div>
-                ) : teamSuccess ? (
+                {smartTeam ? (
                   <div className="mt-6 grid grid-cols-2 gap-3">
-                    {Object.entries(teamSuccess)
-                      .filter(
-                        ([key]) =>
-                          typeof teamSuccess[key] === "number" ||
-                          typeof teamSuccess[key] === "string"
-                      )
-                      .slice(0, 6)
-                      .map(([key, value]) => (
-                        <div
-                          key={key}
-                          className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4"
-                        >
-                          <div className="text-[10px] uppercase tracking-wider text-slate-600">
-                            {key.replaceAll("_", " ")}
-                          </div>
-
-                          <div className="mt-2 text-lg font-bold">
-                            {typeof value === "number"
-                              ? Number.isInteger(value)
-                                ? value
-                                : value.toFixed(2)
-                              : String(value)}
-                          </div>
+                    {getTeamAnalysis().map((item) => (
+                      <div
+                        key={item.key}
+                        className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4"
+                      >
+                        <div className="text-[10px] uppercase tracking-wider text-slate-600">
+                          {item.label}
                         </div>
-                      ))}
+
+                        <div className="mt-2 text-lg font-bold">
+                          {typeof item.value === "number"
+                            ? Number.isInteger(item.value)
+                              ? item.value
+                              : item.value.toFixed(2)
+                            : String(item.value)}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="py-12 text-center text-sm text-slate-500">
