@@ -787,6 +787,32 @@ def github_profile(
     )
 
     return profile
+@app.get("/students/me/github-projects")
+def my_github_projects(
+    student=Depends(
+        require_role("student")
+    )
+):
+    username = student.get(
+        "github_username"
+    )
+
+    if not username:
+        return {
+            "message": "GitHub username not found",
+            "username": None,
+            "repositories": []
+        }
+
+    repos = get_github_repositories(
+        username
+    )
+
+    return {
+        "username": username,
+        "repositories": repos
+    }
+
 
 
 @app.get("/students/{student_id}/github-projects")
@@ -841,6 +867,7 @@ def github_projects(
         "username": username,
         "repositories": repos
     }
+
 
 
 @app.get(
