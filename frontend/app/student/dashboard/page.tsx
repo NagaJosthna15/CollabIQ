@@ -26,6 +26,10 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [githubData, setGithubData] = useState<any>(null);
   const [githubLoading, setGithubLoading] = useState(false);
+  const [invitations, setInvitations] = useState<any[]>([]);
+  const [invitationsLoading, setInvitationsLoading] = useState(false);
+  const [invitationAction, setInvitationAction] = useState("");
+  const [invitationMessage, setInvitationMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -127,12 +131,110 @@ try {
 
     loadProfile();
   }, [router]);
+  async function respondToInvitation(
+  token: string,
+  action: "accept" | "reject"
+) {
+  const accessToken = localStorage.getItem(
+    "collabiq_access_token"
+  );
+
+  if (!accessToken) {
+    router.push("/login");
+    return;
+  }
+
+  setInvitationAction(token);
+  setInvitationMessage("");
+
+  try {
+    const response = await fetch(
+      `${API_URL}/invitations/${token}/${action}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.status === 401) {
+      localStorage.clear();
+      sessionStorage.clear();
+      router.push("/login");
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail || `Unable to ${action} invitation`
+      );
+    }
+
+    setInvitationMessage(
+      action === "accept"
+        ? "Invitation accepted successfully!"
+        : "Invitation rejected successfully."
+    );
+
+    await loadInvitations();
+  } catch (error: any) {
+    setInvitationMessage(
+      error.message || "Something went wrong."
+    );
+  } finally {
+    setInvitationAction("");
+  }
+}
 
   function handleLogout() {
     localStorage.clear();
     sessionStorage.clear();
     router.push("/login");
   }
+  async function loadInvitations() {
+  const token = localStorage.getItem(
+    "collabiq_access_token"
+  );
+
+  if (!token) return;
+
+  setInvitationsLoading(true);
+  setInvitationMessage("");
+
+  try {
+    const response = await fetch(
+      `${API_URL}/students/me/invitations`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.status === 401) {
+      localStorage.clear();
+      sessionStorage.clear();
+      router.push("/login");
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error("Unable to load invitations");
+    }
+
+    const data = await response.json();
+    setInvitations(data.invitations || []);
+  } catch {
+    setInvitationMessage(
+      "Unable to load invitations. Please try again."
+    );
+  } finally {
+    setInvitationsLoading(false);
+  }
+}
 
   function openEditProfile() {
     setSuccess("");
@@ -402,6 +504,90 @@ try {
               {student?.cgpa ?? "-"}
             </p>
           </div>
+          
+<div className="mt-8 rounded-3xl border border-violet-500/20 bg-white/[0.03] p-7">
+  <div className="flex items-center justify-between gap-4">
+    <div className="flex items-center gap-3">
+      <Bell className="text-violet-400" />
+      <div>
+        <h2 className="text-xl font-bold">Recruitment Invitations</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Review project opportunities and respond to recruiters.
+        </p>
+      </div>
+    </div>
+    <button
+      onClick={loadInvitations}
+      className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5"
+    >
+      Refresh
+    </button>
+  </div>
+
+  {invitationMessage && (
+    <div className="mt-5 rounded-xl border border-violet-400/20 bg-violet-400/10 p-3 text-sm text-violet-200">
+      {invitationMessage}
+    </div>
+  )}
+
+  {invitationsLoading ? (
+    <p className="mt-6 text-sm text-slate-400">Loading invitations...</p>
+  ) : invitations.length === 0 ? (
+    <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-8 text-center">
+      <Bell className="mx-auto text-slate-500" size={30} />
+      <p className="mt-3 font-semibold">No invitations yet</p>
+      <p className="mt-1 text-sm text-slate-400">
+        Recruiter invitations will appear here.
+      </p>
+    </div>
+  ) : (
+    <div className="mt-6 grid gap-4 md:grid-cols-2">
+      {invitations.map((invitation: any, index: number) => (
+        <div
+          key={invitation.token || `${invitation.project_id}-${index}`}
+          className="rounded-2xl border border-white/10 bg-black/20 p-5"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="font-semibold">{invitation.project_title || "Project Opportunity"}</h3>
+            <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs capitalize text-cyan-300">
+              {invitation.status || "invited"}
+            </span>
+          </div>
+
+          <p className="mt-3 text-sm text-slate-400">
+            Offered role: {invitation.role || "Not specified"}
+          </p>
+
+          {invitation.created_at && (
+            <p className="mt-2 text-xs text-slate-500">
+              Received: {new Date(invitation.created_at).toLocaleDateString()}
+            </p>
+          )}
+
+          {invitation.status === "invited" && (
+            <div className="mt-5 flex gap-3">
+              <button
+                disabled={invitationAction === invitation.token}
+                onClick={() => respondToInvitation(invitation.token, "accept")}
+                className="flex-1 rounded-xl bg-emerald-500/15 px-4 py-2.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/25 disabled:opacity-50"
+              >
+                {invitationAction === invitation.token ? "Processing..." : "Accept"}
+              </button>
+              <button
+                disabled={invitationAction === invitation.token}
+                onClick={() => respondToInvitation(invitation.token, "reject")}
+                className="flex-1 rounded-xl bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+              >
+                Reject
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
             <Bell className="text-emerald-400" />

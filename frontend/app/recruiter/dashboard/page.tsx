@@ -54,6 +54,9 @@ const [panelLoading, setPanelLoading] = useState(false);
   const [description, setDescription] = useState("");
   const [skills, setSkills] = useState("");
   const [teamSize, setTeamSize] = useState("4");
+  const [pdfUploading, setPdfUploading] = useState(false);
+const [pdfFileName, setPdfFileName] = useState("");
+const [pdfError, setPdfError] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [createSuccess, setCreateSuccess] = useState("");
@@ -228,6 +231,79 @@ async function loadInvitations() {
     setUserName(storedName);
     loadProjects();
   }, [router]);
+  async function handlePdfUpload(
+  event: React.ChangeEvent<HTMLInputElement>
+) {
+  const file = event.target.files?.[0];
+
+  if (!file) return;
+
+  setPdfError("");
+  setPdfFileName("");
+
+  if (file.type !== "application/pdf") {
+    setPdfError("Please upload a PDF file.");
+    event.target.value = "";
+    return;
+  }
+
+  const token = getToken();
+
+  if (!token) {
+    setPdfError("Please log in again.");
+    router.push("/login");
+    return;
+  }
+
+  setPdfUploading(true);
+  setPdfFileName(file.name);
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(
+      `${API_URL}/projects/extract-pdf`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail || "Unable to process PDF."
+      );
+    }
+
+    const extractedText = data.extracted_text || "";
+
+    if (!extractedText.trim()) {
+      throw new Error("No readable text found in PDF.");
+    }
+
+    setDescription(extractedText);
+
+    setCreateSuccess(
+      "PDF uploaded! Please review the extracted text."
+    );
+  } catch (error) {
+    setPdfError(
+      error instanceof Error
+        ? error.message
+        : "PDF upload failed."
+    );
+    setPdfFileName("");
+  } finally {
+    setPdfUploading(false);
+    event.target.value = "";
+  }
+}
 
   async function createProject() {
     const token = getToken();
@@ -1010,6 +1086,52 @@ async function loadInvitations() {
                   right team.
                 </p>
               </div>
+              <div className="mb-6 rounded-2xl border border-dashed border-violet-400/30 bg-violet-500/[0.05] p-5">
+  <div className="flex items-center gap-3">
+    <div className="rounded-xl bg-violet-500/10 p-3 text-violet-300">
+      <Sparkles size={22} />
+    </div>
+
+    <div>
+      <h3 className="font-semibold text-white">
+        Import Project from PDF
+      </h3>
+      <p className="mt-1 text-xs text-slate-400">
+        Upload requirements and automatically extract project details.
+      </p>
+    </div>
+  </div>
+
+  <label className="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-violet-400/20 bg-violet-500/10 px-4 py-3 text-sm font-medium text-violet-200 transition hover:bg-violet-500/20">
+    <Plus size={17} />
+    {pdfUploading ? "Processing PDF..." : "Choose PDF File"}
+
+    <input
+      type="file"
+      accept=".pdf,application/pdf"
+      className="hidden"
+      disabled={pdfUploading}
+      onChange={handlePdfUpload}
+    />
+  </label>
+
+  {pdfFileName && (
+    <p className="mt-3 text-xs text-emerald-300">
+      Selected: {pdfFileName}
+    </p>
+  )}
+
+  {pdfError && (
+    <p className="mt-3 text-xs text-red-300">
+      {pdfError}
+    </p>
+  )}
+
+  <p className="mt-3 text-center text-xs text-slate-500">
+    No PDF? You can fill in the form manually below.
+  </p>
+</div>
+
 
               <div className="space-y-5">
                 <div>

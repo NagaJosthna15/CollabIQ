@@ -3,6 +3,7 @@ from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from bson import ObjectId
+import fitz
 
 from models import (
     Student,
@@ -492,6 +493,63 @@ async def upload_resume(
         "skills": skills,
         "updated": result.modified_count
     }
+@app.post("/projects/extract-pdf")
+async def extract_project_pdf(
+    file: UploadFile = File(...),
+    recruiter=Depends(require_role("recruiter"))
+):
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload a PDF file"
+        )
+
+    try:
+        pdf_bytes = await file.read()
+
+        if not pdf_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded PDF is empty"
+            )
+
+        document = fitz.open(
+            stream=pdf_bytes,
+            filetype="pdf"
+        )
+
+        try:
+            extracted_text = "\n".join(
+                page.get_text()
+                for page in document
+            ).strip()
+        finally:
+            document.close()
+
+        if not extracted_text:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "No readable text found. "
+                    "Scanned PDFs need OCR support."
+                )
+            )
+
+        return {
+            "message": "PDF text extracted successfully",
+            "filename": file.filename,
+            "extracted_text": extracted_text
+        }
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Unable to read this PDF file"
+        )
+    finally:
+        await file.close()
 
 
 @app.post("/projects")
@@ -1427,6 +1485,39 @@ def expire_project_invitations(
         "checked_at": result[
             "checked_at"
         ]
+    })
+@app.get(
+    "/students/me/invitations"
+)
+def get_my_invitations(
+    student=Depends(
+        require_role("student")
+    )
+):
+    student_id = str(
+        student["_id"]
+    )
+
+    try:
+        invitations = list(
+            invitations_collection.find({
+                "candidate_id": student_id
+            }).sort(
+                "created_at",
+                -1
+            )
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
+
+    return make_json_safe({
+        "total_invitations": len(
+            invitations
+        ),
+        "invitations": invitations
     })
 @app.post(
     "/invitations/{token}/accept"
