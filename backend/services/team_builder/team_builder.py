@@ -30,9 +30,11 @@ MIN_PRIMARY_SCORE = 40
 # PRIMARY ROLE ASSIGNMENT
 # ============================================================
 
+
 def assign_primary_roles(
     project_requirements,
-    ranked_candidates
+    ranked_candidates,
+    team_size
 ):
 
     preferred_roles = project_requirements.get(
@@ -45,6 +47,13 @@ def assign_primary_roles(
     used_students = set()
 
     for role in preferred_roles:
+
+        # Stop when the requested team size is reached
+        if len(selected_team) >= team_size:
+            unassigned_roles.extend(
+                preferred_roles[len(selected_team):]
+            )
+            break
 
         print(
             "\nSearching:",
@@ -118,7 +127,6 @@ def assign_primary_roles(
             )
 
             if combined_score > best_score:
-
                 best_score = combined_score
                 best_candidate = candidate
 
@@ -141,9 +149,7 @@ def assign_primary_roles(
                 "selection_type": "primary"
             })
 
-            used_students.add(
-                student_name
-            )
+            used_students.add(student_name)
 
             print(
                 "Selected:",
@@ -154,21 +160,16 @@ def assign_primary_roles(
 
         else:
 
-            unassigned_roles.append(
-                role
-            )
+            unassigned_roles.append(role)
 
             if best_candidate is not None:
-
                 print(
                     "No suitable unused candidate for:",
                     role,
                     "| Best Score:",
                     round(best_score, 2)
                 )
-
             else:
-
                 print(
                     "No unused candidate available for:",
                     role
@@ -333,19 +334,22 @@ def convert_additional_candidate_to_team_member(candidate):
 
 def build_team(
     project_requirements,
-    ranked_candidates
+    ranked_candidates,
+    team_size
 ):
 
   
     primary_result = assign_primary_roles(
         project_requirements,
-        ranked_candidates
+        ranked_candidates,
+        team_size
     )
 
     selected_team = primary_result.get(
         "selected_team",
         []
     )
+    selected_team = selected_team[:team_size]
 
     coverage_analyzer = CoverageAnalyzer()
 
@@ -482,24 +486,26 @@ def build_team(
                 )
 
         # Decide number of additional candidates needed
-        number_needed = len(
-            remaining_roles
+        # Calculate remaining team slots
+        remaining_slots = max(
+            0,
+        team_size - len(selected_team)
         )
 
-        # If there are no missing roles but skills are missing,
-        # allow up to 3 additional candidates
-        if number_needed == 0 and remaining_skills:
+# Request only the number of candidates that can fit
+        number_needed = min(
+            len(remaining_roles),
+            remaining_slots
+        )
 
+# If roles are covered but skills are missing,
+# use remaining slots to improve skill coverage
+        if number_needed == 0 and remaining_skills:
             number_needed = min(
                 3,
-                len(remaining_skills)
+            len(remaining_skills),
+            remaining_slots
             )
-
-        # Maximum additional candidates
-        number_needed = min(
-            number_needed,
-            4
-        )
 
         additional_requirements = {
 
@@ -540,6 +546,8 @@ def build_team(
       
 
         for candidate in additional_candidates:
+            if len(selected_team) >= team_size:
+                break
 
             team_member = (
                 convert_additional_candidate_to_team_member(

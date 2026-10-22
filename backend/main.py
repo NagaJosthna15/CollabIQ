@@ -493,64 +493,127 @@ async def upload_resume(
         "skills": skills,
         "updated": result.modified_count
     }
+
+
 @app.post("/projects/extract-pdf")
 async def extract_project_pdf(
     file: UploadFile = File(...),
     recruiter=Depends(require_role("recruiter"))
 ):
+    import re
+
     if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(
-            status_code=400,
-            detail="Please upload a PDF file"
-        )
+        raise HTTPException(status_code=400, detail="Please upload a PDF file")
 
     try:
         pdf_bytes = await file.read()
-
         if not pdf_bytes:
-            raise HTTPException(
-                status_code=400,
-                detail="Uploaded PDF is empty"
-            )
+            raise HTTPException(status_code=400, detail="Uploaded PDF is empty")
 
-        document = fitz.open(
-            stream=pdf_bytes,
-            filetype="pdf"
-        )
-
+        document = fitz.open(stream=pdf_bytes, filetype="pdf")
         try:
-            extracted_text = "\n".join(
-                page.get_text()
-                for page in document
-            ).strip()
+            extracted_text = "\n".join(page.get_text() for page in document).strip()
         finally:
             document.close()
 
         if not extracted_text:
             raise HTTPException(
                 status_code=422,
-                detail=(
-                    "No readable text found. "
-                    "Scanned PDFs need OCR support."
-                )
+                detail="No readable text found. Scanned PDFs need OCR support."
             )
 
+        # Normalize PDF text and remove empty lines
+        lines = [
+            re.sub(r"\s+", " ", line).strip()
+            for line in extracted_text.splitlines()
+            if line.strip()
+        ]
+        text = "\n".join(lines)
+
+        # Extract title from an inline label
+        title_match = re.search(
+            r"Project\s+Title\s*:\s*(.+)",
+            text,
+            re.IGNORECASE
+        )
+        title = title_match.group(1).strip() if title_match else ""
+
+        # Fallback: find the title after the "Project Overview" heading
+        if not title:
+            for i, line in enumerate(lines):
+                if re.search(r"Project Overview", line, re.IGNORECASE):
+                    for candidate in lines[i + 1:i + 5]:
+                        if not re.search(r"^Project Description\s*:", candidate, re.I):
+                            candidate = re.sub(r"^Project Title\s*:\s*", "", candidate, flags=re.I)
+                            if candidate and not re.match(r"^\d+\.", candidate):
+                                title = candidate.strip()
+                                break
+                    break
+
+        # Extract description, including wrapped lines
+        description_match = re.search(
+            r"Project\s+Description\s*:\s*(.*?)(?=\n\s*(?:2\.\s*Required Technical Skills|Required Technical Skills|3\.\s*Team Requirements|Team Requirements)\b)",
+            text,
+            re.IGNORECASE | re.DOTALL
+        )
+        description = ""
+        if description_match:
+            description = re.sub(
+                r"\s+", " ", description_match.group(1)
+            ).strip()
+
+        # Extract skills from the Required Technical Skills section.
+        # Use known table skill names so the "Expected Use" column isn't included.
+        known_skills = [
+            "Python",
+            "FastAPI",
+            "Machine Learning",
+            "Natural Language Processing (NLP)",
+            "MongoDB",
+            "React / Next.js",
+            "REST APIs",
+        ]
+
+        skills_section_match = re.search(
+            r"Required Technical Skills(.*?)(?=\n\s*(?:3\.\s*Team Requirements|Team Requirements)\b)",
+            text,
+            re.IGNORECASE | re.DOTALL
+        )
+        skills_section = skills_section_match.group(1) if skills_section_match else ""
+
+        required_skills = [
+            skill for skill in known_skills
+            if re.search(re.escape(skill), skills_section, re.IGNORECASE)
+        ]
+
+        # Extract team size, e.g. "Team Size: 4 members"
+        team_match = re.search(
+            r"Team\s+Size\s*:\s*(\d+)",
+            text,
+            re.IGNORECASE
+        )
+        team_size = int(team_match.group(1)) if team_match else 4
+
         return {
-            "message": "PDF text extracted successfully",
+            "message": "PDF details extracted successfully",
             "filename": file.filename,
+            "title": title,
+            "description": description,
+            "required_skills": required_skills,
+            "team_size": team_size,
             "extracted_text": extracted_text
         }
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        print("PDF extraction error:", str(e))
         raise HTTPException(
             status_code=400,
             detail="Unable to read this PDF file"
         )
     finally:
         await file.close()
-
 
 @app.post("/projects")
 def create_project(
@@ -1009,6 +1072,8 @@ def github_relevance(
         "project": project["title"],
         "github_relevance_score": score
     }
+
+
 @app.get("/projects/{project_id}/smart-team")
 def smart_team(
     project_id: str,
@@ -1023,14 +1088,18 @@ def smart_team(
 
     agent = RecruiterAgent()
 
+    # Use the team size saved for this project
+    requested_team_size = int(
+        project.get("team_size", 4)
+    )
+
     try:
         result = agent.recruit_team(
             project["title"],
-            project.get(
-                "description",
-                ""
-            )
+            project.get("description", ""),
+            team_size=requested_team_size
         )
+
     except RuntimeError as e:
         if "Gemini service is temporarily unavailable" in str(e):
             raise HTTPException(
@@ -1044,6 +1113,7 @@ def smart_team(
     return make_json_safe({
         "project": project["title"],
         "team_size": len(team),
+        "requested_team_size": requested_team_size,
         "team": team,
         "coverage": result["coverage"],
         "skill_gaps": result["skill_gaps"],
@@ -1051,6 +1121,7 @@ def smart_team(
             "additional_candidates"
         ]
     })
+
 
 @app.get(
     "/projects/{project_id}/team-success"
