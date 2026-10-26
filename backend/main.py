@@ -668,6 +668,87 @@ def get_projects(
             detail="Database service is temporarily unavailable"
         )
 
+@app.put("/projects/{project_id}")
+def update_project(
+    project_id: str,
+    project: Project,
+    recruiter=Depends(require_role("recruiter"))
+):
+    from bson import ObjectId
+    from bson.errors import InvalidId
+
+    try:
+        object_id = ObjectId(project_id)
+    except (InvalidId, TypeError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid project ID"
+        )
+
+    project_data = project.model_dump()
+
+    try:
+        result = projects_collection.update_one(
+            {
+                "_id": object_id,
+                "created_by": str(recruiter["_id"])
+            },
+            {"$set": project_data}
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
+
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found or access denied"
+        )
+
+    return {
+        "message": "Project updated successfully",
+        "project_id": project_id
+    }
+
+@app.delete("/projects/{project_id}")
+def delete_project(
+    project_id: str,
+    recruiter=Depends(require_role("recruiter"))
+):
+    from bson import ObjectId
+    from bson.errors import InvalidId
+
+    try:
+        object_id = ObjectId(project_id)
+    except (InvalidId, TypeError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid project ID"
+        )
+
+    try:
+        result = projects_collection.delete_one({
+            "_id": object_id,
+            "created_by": str(recruiter["_id"])
+        })
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service is temporarily unavailable"
+        )
+
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found or access denied"
+        )
+
+    return {"message": "Project deleted successfully"}
+
+    
+
 @app.get("/projects/{project_id}/matches")
 def find_matches(
     project_id: str,
